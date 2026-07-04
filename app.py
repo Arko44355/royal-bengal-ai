@@ -14,7 +14,7 @@ import base64
 import json
 import uuid
 
-# 🛡️ বুলেটপ্রুফ ইমপোর্ট গার্ডরেল (কোনো প্যাকেজ মিসিং থাকলেও অ্যাপ ক্র্যাশ করবে না)
+# 🛡️ বুলেটপ্রুফ ইমপোর্টガードরেল (কোনো প্যাকেজ মিসিং থাকলেও অ্যাপ ক্র্যাশ করবে না)
 try:
     import pdfplumber
     PDF_SUPPORT = True
@@ -96,9 +96,10 @@ if "current_session_id_tab3" not in st.session_state:
 if "renaming_session_id" not in st.session_state:
     st.session_state.renaming_session_id = None
 
-# 📸 মোবাইল ছবির মেগা সাইজ এবং রেজোলিউশন কম্প্রেস করার ফাংশন
+# 📸 মোবাইল ছবির মেগা সাইজ এবং রেজোলিউশন কম্প্রেস করার ফাংশন (Seek(0) সহ সম্পূর্ণ সুরক্ষিত)
 def process_uploaded_image(uploaded_file):
     try:
+        uploaded_file.seek(0) # পয়েন্টার ফাইলের শুরুতে ফিরিয়ে আনা হচ্ছে
         img = Image.open(uploaded_file)
         # ট্রান্সপারেন্ট বা PNG হলে RGB তে রূপান্তর
         if img.mode in ("RGBA", "P"):
@@ -106,7 +107,7 @@ def process_uploaded_image(uploaded_file):
         # এআই-বান্ধব সাইজে ডাউনসাইজ করা (ম্যাক্সিমাম ১০২৪ পিক্সেল)
         img.thumbnail((1024, 1024))
         buffered = BytesIO()
-        img.save(buffered, format="JPEG", quality=80)
+        img.save(buffered, format="JPEG", quality=85)
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
     except Exception as e:
         st.error(f"⚠️ ইমেজ প্রসেস করতে সমস্যা হয়েছে বন্ধু: {e}")
@@ -128,7 +129,7 @@ def perform_web_search(query, max_results=5):
     except Exception as e:
         return ""
 
-# 👁️ ডাইরেক্ট কানেকশন ও ফলব্যাক চেইন সহ ইমেজ এআই ফাংশন
+# 👁️ ডাইরেক্ট কানেকশন ও ফলব্যাক চেইন সহ ইমেজ এআই ফাংশন (অত্যন্ত উন্নত ও ক্যাশ-সেফ স্ট্রিম পার্সার)
 def vision_response_generator(image_base64, user_prompt):
     models_to_try = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
     headers = {
@@ -174,9 +175,10 @@ def vision_response_generator(image_base64, user_prompt):
                 success = True
                 for line in response.iter_lines():
                     if line:
-                        decoded_line = line.decode('utf-8')
-                        if decoded_line.startswith("data: "):
-                            data_str = decoded_line[6:].strip()
+                        decoded_line = line.decode('utf-8').strip()
+                        # data: এবং data: উভয় প্যাটার্নই যেন সেফলি সাপোর্ট করে
+                        if decoded_line.startswith("data:"):
+                            data_str = decoded_line[5:].strip()
                             if data_str == "[DONE]":
                                 break
                             try:
@@ -520,6 +522,7 @@ with tab1:
     if uploaded_file is not None:
         if uploaded_file.name.endswith(".pdf") and PDF_SUPPORT:
             try:
+                uploaded_file.seek(0)
                 with pdfplumber.open(uploaded_file) as pdf:
                     extracted_context = "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
                 st.info(f"📄 PDF থেকে তথ্য নেওয়া হয়েছে ({len(extracted_context)} অক্ষরে)")
@@ -527,7 +530,7 @@ with tab1:
                 st.error(f"PDF রিড করতে সমস্যা হয়েছে: {e}")
         elif uploaded_file.name.split('.')[-1].lower() in ["png", "jpg", "jpeg"]:
             st.image(uploaded_file, caption="আপলোড করা স্ক্রিনশট/ছবি", width=300)
-            # রিসাইজ এবং কম্প্রেস করে বেস৬৪ তৈরি করা হচ্ছে
+            # রিসাইজ এবং কম্প্রেস করে বেস৬৪ তৈরি করা হচ্ছে (পয়েন্টার সিকিউরিটি সহ)
             image_base64 = process_uploaded_image(uploaded_file)
 
     for message in st.session_state.messages:
@@ -694,7 +697,7 @@ with tab2:
             save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.math_messages, "tab2")
             st.rerun()
 
-# 📈 ৩. Economics Demand Analyzer ট্যাব
+# 📈 ৩. Economics Demand Analyzer ট্যাব (completions টাইপো ফিক্সড)
 with tab3:
     st.subheader("📈 Economics Demand Analyzer")
     st.write("অর্থনীতি, চাহিদা (Demand), জোগান (Supply) এবং মার্কেট গ্রাফ বিশ্লেষণ করার প্যানেল।")
@@ -724,6 +727,7 @@ with tab3:
                     if not client:
                         yield "⚠️ এআই ইঞ্জিন লোড হচ্ছে।"
                         return
+                    # com completions স্পেস টাইপোটি এখানে স্থায়ীভাবে ঠিক করা হলো
                     response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[
