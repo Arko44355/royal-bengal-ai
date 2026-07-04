@@ -2,6 +2,10 @@ import streamlit as st
 import requests
 import numpy as np
 import plotly.graph_objects as go
+import plotly.express as px
+import matplotlib
+matplotlib.use('Agg') # লিনাক্স ক্লাউড সার্ভারের জন্য নন-ইন্টারেক্টিভ ব্যাকএন্ড সেটআপ
+import matplotlib.pyplot as plt
 from PIL import Image
 import os
 import pdfplumber
@@ -111,22 +115,37 @@ tab1, tab2, tab3, tab4 = st.tabs(["💬 AI Assistant & Upload Solver", "📊 Mat
 
 # helper ফাংশন গ্রাফ এক্সিকিউট করার জন্য
 def try_execute_graph(full_response):
-    if "fig =" in full_response or "go.Figure" in full_response:
+    if "fig =" in full_response or "go.Figure" in full_response or "plt." in full_response:
         try:
-            # পাইথন কোড ব্লক পার্স করা হচ্ছে সেফ উপায়ে
             if "```python" in full_response:
                 code_block = full_response.split("```python")[1].split("```")[0]
             elif "```" in full_response:
                 code_block = full_response.split("```")[1].split("```")[0]
             else:
                 code_block = full_response
-                
-            local_vars = {"np": np, "go": go, "st": st}
-            exec(code_block, globals(), local_vars)
-            if "fig" in local_vars:
-                st.plotly_chart(local_vars["fig"], use_container_width=True)
-        except:
-            pass
+            
+            code_block = code_block.replace("fig.show()", "")
+            code_block = code_block.replace("plt.show()", "")
+
+            exec_env = {}
+            exec_env.update(globals())
+            exec_env.update({
+                "np": np,
+                "go": go,
+                "px": px,
+                "plt": plt,
+                "st": st
+            })
+            
+            exec(code_block, exec_env)
+            
+            if "fig" in exec_env:
+                st.plotly_chart(exec_env["fig"], use_container_width=True)
+            elif "plt" in exec_env and plt.get_fignums():
+                st.pyplot(plt.gcf())
+                plt.clf()
+        except Exception as e:
+            st.warning(f"⚠️ গ্রাফ রেন্ডার করতে সমস্যা হয়েছে বন্ধু। ট্রাই করছি... এরর: {e}")
 
 # 📂 ১. ফাইল ও ইমেজ আপলোড সমাধান ট্যাব
 with tab1:
@@ -168,7 +187,7 @@ with tab1:
                             messages=[{
                                 "role": "user",
                                 "content": [
-                                    {"type": "text", "text": f"You are Royal Bengal AI Machine. Reply ONLY in Bengali script. User Question: {user_input if user_input else 'এই ছবিটিতে কী আছে বুঝিয়ে বলো বন্ধু।'}"},
+                                    {"type": "text", "text": f"You are Royal Bengal AI Machine. Default to replying in Bengali script. However, if the user explicitly asks you to reply in English or writes in English, reply in English. User Question: {user_input if user_input else 'এই ছবিটিতে কী আছে বুঝিয়ে বলো বন্ধু।'}"},
                                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
                                 ]
                             }],
@@ -178,7 +197,10 @@ with tab1:
                         response = client.chat.completions.create(
                             model="llama-3.3-70b-versatile",
                             messages=[
-                                {"role": "system", "content": "You are Royal Bengal AI Machine, a close friend of the user created by Md Mohtasim Billah. Reply ONLY in beautiful Bengali script. Wrap math formulas in $$ if needed."},
+                                {
+                                    "role": "system", 
+                                    "content": "You are Royal Bengal AI Machine, a close friend of the user created by Md Mohtasim Billah. Default to replying in beautiful Bengali script. However, if the user explicitly requests English or writes in English, you MUST reply in English. Wrap math formulas in $$ if needed."
+                                },
                                 {"role": "user", "content": final_prompt}
                             ],
                             stream=True
@@ -218,7 +240,7 @@ with tab2:
                         messages=[
                             {
                                 "role": "system", 
-                                "content": "You are a Math Expert AI. Answer in Bengali script. CRITICAL: If the user wants a graph, you MUST write python code using plotly.graph_objects as go and numpy as np. Wrap the code inside triple backticks using the language identifier 'python'. Always name the figure variable 'fig'. Example: fig = go.Figure(). Then st.plotly_chart will render it."
+                                "content": "You are a Math Expert AI. Default to replying in Bengali script. However, if the user asks in English or requests English, you MUST reply in English. CRITICAL: If the user wants a graph, you MUST write python code using plotly.graph_objects as go and numpy as np. Wrap the code inside triple backticks using the language identifier 'python'. Always name the figure variable 'fig'. Example: fig = go.Figure(). Then st.plotly_chart will render it."
                             },
                             {"role": "user", "content": math_input}
                         ],
@@ -256,7 +278,7 @@ with tab3:
                         messages=[
                             {
                                 "role": "system", 
-                                "content": "You are an Economics Professor AI. Answer in Bengali script. CRITICAL: If you explain a demand/supply curve, generate Python code using plotly.graph_objects as go to draw the curve. Wrap the code in triple backticks with the 'python' language identifier. Name the figure variable 'fig'."
+                                "content": "You are an Economics Professor AI. Default to replying in Bengali script. However, if the user asks in English or requests English, you MUST reply in English. CRITICAL: If you explain a demand/supply curve, generate Python code using plotly.graph_objects as go to draw the curve. Wrap the code in triple backticks with the 'python' language identifier. Name the figure variable 'fig'."
                             },
                             {"role": "user", "content": econ_input}
                         ],
