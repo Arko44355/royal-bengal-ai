@@ -109,7 +109,6 @@ def perform_web_search(query, max_results=5):
             search_context += f"উৎস [{i}]: {r.get('title')}\nলিংক: {r.get('href')}\nতথ্যসার: {r.get('body')}\n\n"
         return search_context
     except Exception as e:
-        # লাইভ সার্চ কাজ না করলে ক্র্যাশ না করে খালি রেসপন্স পাঠাবে
         return ""
 
 # 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ (থ্রেড-সেফ)
@@ -637,7 +636,7 @@ with tab3:
                     if not client:
                         yield "⚠️ এআই ইঞ্জিন লোড হচ্ছে।"
                         return
-                    response = client.chat.com completions.create(
+                    response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[
                             {
@@ -689,4 +688,3 @@ with tab3:
 with tab4:
     st.subheader("🎨 AI Image Generator")
     st.write("দুঃখিত ! টেক্সট-টু-ইমেজ জেনারেশন মডেলটি এখনো ক্লাউডে কনফিগার করা হচ্ছে। খুব শীঘ্রই এখানে ছবি তৈরির ইঞ্জিন যুক্ত হবে।")
-
