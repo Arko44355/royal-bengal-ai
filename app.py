@@ -112,7 +112,7 @@ def perform_web_search(query, max_results=5):
             return ""
         search_context = "\n🌐 [লাইভ ইন্টারনেট অনুসন্ধান ফলাফল]:\n"
         for i, r in enumerate(results, 1):
-            search_context += f"উৎস [{i}]: {r.get('title')}\nতথ্যসার: {r.get('body')}\n\n"
+            search_context += f"উৎস [{i}]: {r.get('title')}\n정보সার: {r.get('body')}\n\n"
         return search_context
     except Exception as e:
         return ""
@@ -496,7 +496,6 @@ with tab1:
                 with st.spinner("🐯 এআই সমাধান তৈরি করছে... অনুগ্রহ করে অপেক্ষা করুন..."):
                     try:
                         if image_base64:
-                            # 👁️ সরাসরি নন-স্ট্রিমিং মোডে অতি সরল ও নির্ভরযোগ্য ছবি সমাধান
                             text_content = (
                                 "You are Royal Bengal AI Machine, an Elite Academic Scholar and close friend of the user. "
                                 "Provide highly detailed, step-by-step academic solutions. Default to beautiful Bengali script. "
@@ -517,7 +516,6 @@ with tab1:
                             )
                             full_response = completion.choices[0].message.content
                         else:
-                            # 💬 নন-স্ট্রিমিং টেক্সট চ্যাট
                             completion = client.chat.completions.create(
                                 model="llama-3.3-70b-versatile",
                                 messages=[
@@ -531,7 +529,6 @@ with tab1:
                             )
                             full_response = completion.choices[0].message.content
                             
-                        # সরাসরি সম্পূর্ণ উত্তরটি স্ক্রিনে দেখানো হবে
                         st.markdown(full_response)
                         
                     except Exception as e:
@@ -563,7 +560,7 @@ with tab1:
             save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.messages, "tab1")
             st.rerun()
 
-# 📊 ২. Math Wave Solver ট্যাব
+# 📊 ২. Math Wave Solver ট্যাব (typo fixed)
 with tab2:
     st.subheader("📊 Math Wave Solver")
     for message in st.session_state.math_messages:
@@ -580,7 +577,8 @@ with tab2:
             if not client:
                 st.error("⚠️ Groq Client সচল নেই।")
             else:
-                with St = st.spinner("🌐 গাণিতিক তথ্য অনুসন্ধান ও সমাধান করা হচ্ছে..."):
+                # with st.spinner টাইপোটি এখানে স্থায়ীভাবে ঠিক করা হলো
+                with st.spinner("🌐 গাণিতিক তথ্য অনুসন্ধান ও সমাধান করা হচ্ছে..."):
                     try:
                         search_info = ""
                         if web_search_enabled and WEB_SEARCH_SUPPORT:
