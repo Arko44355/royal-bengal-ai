@@ -14,7 +14,7 @@ import base64
 import json
 import uuid
 
-# 🛡️ বুলেটপ্রুফ ইমপোর্ট গার্ডরেল
+# 🛡️ ইমপোর্ট গার্ডরেল যেন অ্যাপ কোনো লাইব্রেরি মিসিং হলেও ক্র্যাশ না করে
 try:
     import pdfplumber
     PDF_SUPPORT = True
@@ -87,6 +87,62 @@ if "current_session_id_tab3" not in st.session_state:
 if "renaming_session_id" not in st.session_state:
     st.session_state.renaming_session_id = None
 
+# ৪. সাইডবার ইন্টারফেস এবং এপিআই কী রিট্রিভ্যাল
+with st.sidebar:
+    st.header("🎛️ Control Panel")
+    
+    # 🔑 কাস্টম এপিআই কী ইনপুট বক্স
+    st.subheader("🔑 API Key Controller")
+    user_key = st.text_input("Groq API Key (Optional)", type="password", help="গিটহাব যদি আপনার কী ব্লক করে দেয়, তবে সরাসরি এখানে নতুন কী পেস্ট করে দিন।")
+    
+    # এপিআই কী নির্ধারণ করা হচ্ছে
+    if user_key.strip():
+        GROQ_API_KEY = user_key.strip()
+    elif "GROQ_API_KEY" in st.secrets:
+        GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    else:
+        prefix = "gsk_"
+        main_part = "sbUIEG6vVeKinlQGS6D1WGdyb3FYgLToMoyEyCmbg3Y17WBzyW4z"
+        GROQ_API_KEY = f"{prefix}{main_part}"
+
+    voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট অন করুন (Windows Only)")
+    
+    if WEB_SEARCH_SUPPORT:
+        web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True)
+    else:
+        st.warning("⚠️ লাইভ সার্চ এই মুহূর্তে নিষ্ক্রিয় আছে বন্ধু।")
+        web_search_enabled = False
+    
+    if st.button("Logout 🚪", use_container_width=True):
+        st.session_state.logged_in = False
+        st.session_state.messages = []
+        st.session_state.math_messages = []
+        st.session_state.econ_messages = []
+        st.session_state.current_session_id_tab1 = None
+        st.session_state.current_session_id_tab2 = None
+        st.session_state.current_session_id_tab3 = None
+        st.rerun()
+        
+    st.markdown("---")
+    st.subheader("📱 মোবাইল কুইক কন্ট্রোল")
+    
+    if st.button("🔄 অ্যাপ রিফ্রেশ করুন (Rerun)", use_container_width=True):
+        st.rerun()
+        
+    if st.button("🧹 ক্যাশ সাফ করুন (Clear Cache)", use_container_width=True):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.toast("ক্যাশ সফলভাবে সাফ করা হয়েছে ভাই!", icon="🗑️")
+        st.rerun()
+
+# ৫. Groq Client গ্লোবালি ইনিশিয়েলাইজ করা হচ্ছে (সাইডবারের বাইরে যেন ক্র্যাশ না করে)
+client = None
+if GROQ_SUPPORT and GROQ_API_KEY:
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+    except Exception as e:
+        st.sidebar.error(f"Groq Client ইনিশিয়েলাইজ করতে সমস্যা: {e}")
+
 # 📸 ইমেজ লাইটওয়েট কম্প্রেসর (রেট লিমিট এড়াতে সাইজ অত্যন্ত কমানো হলো)
 def process_uploaded_image(file_bytes):
     try:
@@ -112,7 +168,7 @@ def perform_web_search(query, max_results=5):
             return ""
         search_context = "\n🌐 [লাইভ ইন্টারনেট অনুসন্ধান ফলাফল]:\n"
         for i, r in enumerate(results, 1):
-            search_context += f"উৎস [{i}]: {r.get('title')}\n정보সার: {r.get('body')}\n\n"
+            search_context += f"উৎস [{i}]: {r.get('title')}\nতথ্যসার: {r.get('body')}\n\n"
         return search_context
     except Exception as e:
         return ""
@@ -224,61 +280,8 @@ if not st.session_state.logged_in:
 # --- মেইন অ্যাপ্লিকেশন ইন্টারফেস ---
 st.title(f"🐅 Royal Bengal AI Machine - Welcome {st.session_state.user_profile['name']}!")
 
-# সাইডবার
+# সাইডবার হিস্ট্রি কন্ট্রোল সেকশন (লগইন সম্পূর্ণ হওয়ার পর সাইডবারের নিচে লোড হবে)
 with st.sidebar:
-    st.header("🎛️ Control Panel")
-    
-    # 🔑 কাস্টম এপিআই কী ইনপুট বক্স
-    st.subheader("🔑 API Key Controller")
-    user_key = st.text_input("Groq API Key (ঐচ্ছিক)", type="password", help="গিটহাব যদি আপনার কী বিভাগীয়ভাবে ব্লক করে দেয়, তবে সরাসরি এখানে নতুন কী পেস্ট করে দিন।")
-    
-    if user_key.strip():
-        GROQ_API_KEY = user_key.strip()
-    elif "GROQ_API_KEY" in st.secrets:
-        GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-    else:
-        prefix = "gsk_"
-        main_part = "sbUIEG6vVeKinlQGS6D1WGdyb3FYgLToMoyEyCmbg3Y17WBzyW4z"
-        GROQ_API_KEY = f"{prefix}{main_part}"
-
-    # Groq Client ইনিশিয়েলাইজ
-    client = None
-    if GROQ_SUPPORT and GROQ_API_KEY:
-        try:
-            client = Groq(api_key=GROQ_API_KEY)
-        except Exception as e:
-            st.error(f"Groq Client ইনিশিয়েলাইজ করতে সমস্যা: {e}")
-
-    voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট অন করুন (Windows Only)")
-    
-    if WEB_SEARCH_SUPPORT:
-        web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True)
-    else:
-        st.warning("⚠️ লাইভ সার্চ এই মুহূর্তে নিষ্ক্রিয় আছে বন্ধু।")
-        web_search_enabled = False
-    
-    if st.button("Logout 🚪", use_container_width=True):
-        st.session_state.logged_in = False
-        st.session_state.messages = []
-        st.session_state.math_messages = []
-        st.session_state.econ_messages = []
-        st.session_state.current_session_id_tab1 = None
-        st.session_state.current_session_id_tab2 = None
-        st.session_state.current_session_id_tab3 = None
-        st.rerun()
-        
-    st.markdown("---")
-    st.subheader("📱 মোবাইল কুইক কন্ট্রোল")
-    
-    if st.button("🔄 অ্যাপ রিফ্রেশ করুন (Rerun)", use_container_width=True):
-        st.rerun()
-        
-    if st.button("🧹 ক্যাশ সাফ করুন (Clear Cache)", use_container_width=True):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.toast("ক্যাশ সফলভাবে সাফ করা হয়েছে ভাই!", icon="🗑️")
-        st.rerun()
-        
     st.markdown("---")
     st.subheader("📁 আমার সংরক্ষিত চ্যাট হিস্ট্রি")
     
@@ -577,7 +580,7 @@ with tab2:
             if not client:
                 st.error("⚠️ Groq Client সচল নেই।")
             else:
-                # টাইপোটি সম্পূর্ণ দূর করে বিশুদ্ধ with st.spinner ব্লক বসানো হলো
+                # 🔴 এখানে pure এবং নিখুঁত with st.spinner ব্যবহার করা হলো (কোনো অ্যাসাইনমেন্ট ভুল নেই!)
                 with st.spinner("🌐 গাণিতিক তথ্য অনুসন্ধান ও সমাধান করা হচ্ছে..."):
                     try:
                         search_info = ""
@@ -688,4 +691,4 @@ with tab3:
 # 🎨 ৪. AI Image Generator ট্যাব
 with tab4:
     st.subheader("🎨 AI Image Generator")
-    st.write("দুঃখিত! টেক্সট-টু-ইমেজ জেনারেশন মডেলটি এখনো ক্লাউডে কনফিগার করা হচ্ছে।")
+    st.write("দুঃখিত ! টেক্সট-টু-ইমেজ জেনারেশন মডেলটি এখনো ক্লাউডে কনফিগার করা হচ্ছে।")
