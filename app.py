@@ -7,6 +7,7 @@ import matplotlib
 matplotlib.use('Agg') # লিনাক্স ক্লাউড সার্ভারের জন্য নন-ইন্টারেক্টিভ ব্যাকএন্ড সেটআপ
 import matplotlib.pyplot as plt
 from PIL import Image
+from io import BytesIO
 import os
 import sqlite3
 import base64
@@ -95,6 +96,22 @@ if "current_session_id_tab3" not in st.session_state:
 if "renaming_session_id" not in st.session_state:
     st.session_state.renaming_session_id = None
 
+# 📸 মোবাইল ছবির মেগা সাইজ এবং রেজোলিউশন কম্প্রেস করার ফাংশন
+def process_uploaded_image(uploaded_file):
+    try:
+        img = Image.open(uploaded_file)
+        # ট্রান্সপারেন্ট বা PNG হলে RGB তে রূপান্তর
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        # এআই-বান্ধব সাইজে ডাউনসাইজ করা (ম্যাক্সিমাম ১০২৪ পিক্সেল)
+        img.thumbnail((1024, 1024))
+        buffered = BytesIO()
+        img.save(buffered, format="JPEG", quality=80)
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    except Exception as e:
+        st.error(f"⚠️ ইমেজ প্রসেস করতে সমস্যা হয়েছে বন্ধু: {e}")
+        return ""
+
 # 🌐 সেফ লাইভ ওয়েব সার্চ করার ফাংশন
 def perform_web_search(query, max_results=5):
     if not WEB_SEARCH_SUPPORT:
@@ -110,6 +127,73 @@ def perform_web_search(query, max_results=5):
         return search_context
     except Exception as e:
         return ""
+
+# 👁️ ডাইরেক্ট কানেকশন ও ফলব্যাক চেইন সহ ইমেজ এআই ফাংশন
+def vision_response_generator(image_base64, user_prompt):
+    models_to_try = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    text_content = (
+        "You are Royal Bengal AI Machine, an Elite Academic Scholar, Research Professor, and close friend of the user created by Md Mohtasim Billah. "
+        "Default to replying in beautiful Bengali script. However, if the user explicitly asks you to reply in English or writes in English, reply in English. "
+        "Look at the image and provide an EXTREMELY detailed, academic explanation, step-by-step calculations, or rigorous proofs. "
+        f"User Question: {user_prompt if user_prompt else 'এই ছবিটিতে কী আছে বিশদভাবে বুঝিয়ে বলো বন্ধু।'}"
+    )
+
+    success = False
+    last_error = ""
+
+    for model in models_to_try:
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": text_content},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+                    ]
+                }
+            ],
+            "stream": True
+        }
+        
+        try:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                stream=True,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                success = True
+                for line in response.iter_lines():
+                    if line:
+                        decoded_line = line.decode('utf-8')
+                        if decoded_line.startswith("data: "):
+                            data_str = decoded_line[6:].strip()
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                chunk_json = json.loads(data_str)
+                                content = chunk_json['choices'][0]['delta'].get('content', '')
+                                if content:
+                                    yield content
+                            except:
+                                pass
+                break # সফলভাবে স্ট্রিম হয়েছে, লুপ থেকে বের হওয়া হলো
+            else:
+                last_error = f"Model {model} failed with status {response.status_code}: {response.text}"
+        except Exception as e:
+            last_error = f"Model {model} error: {str(e)}"
+            
+    if not success:
+        yield f"✨ দুঃখিত ভাই, এআই ক্লাউড ইঞ্জিন ছবি প্রসেস করতে পারেনি। সর্বশেষ সমস্যা: {last_error}"
 
 # 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ (থ্রেড-সেফ)
 def save_session(session_id, email, title, messages, tab_name):
@@ -230,7 +314,7 @@ with st.sidebar:
         st.warning("⚠️ ক্লাউড সার্ভারে লাইভ সার্চ এই মুহূর্তে নিষ্ক্রিয় আছে বন্ধু। তবে অফলাইন রিসার্চ ইঞ্জিন সচল আছে!")
         web_search_enabled = False
     
-    if st.button("Logout 🚪"):
+    if st.button("Logout 🚪", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.messages = []
         st.session_state.math_messages = []
@@ -238,6 +322,18 @@ with st.sidebar:
         st.session_state.current_session_id_tab1 = None
         st.session_state.current_session_id_tab2 = None
         st.session_state.current_session_id_tab3 = None
+        st.rerun()
+        
+    st.markdown("---")
+    st.subheader("📱 মোবাইল কুইক কন্ট্রোল")
+    
+    if st.button("🔄 অ্যাপ রিফ্রেশ করুন (Rerun)", use_container_width=True):
+        st.rerun()
+        
+    if st.button("🧹 ক্যাশ সাফ করুন (Clear Cache)", use_container_width=True):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.toast("ক্যাশ সফলভাবে সাফ করা হয়েছে ভাই!", icon="🗑️")
         st.rerun()
         
     st.markdown("---")
@@ -429,10 +525,10 @@ with tab1:
                 st.info(f"📄 PDF থেকে তথ্য নেওয়া হয়েছে ({len(extracted_context)} অক্ষরে)")
             except Exception as e:
                 st.error(f"PDF রিড করতে সমস্যা হয়েছে: {e}")
-        elif uploaded_file.name.split('.')[-1] in ["png", "jpg", "jpeg"]:
+        elif uploaded_file.name.split('.')[-1].lower() in ["png", "jpg", "jpeg"]:
             st.image(uploaded_file, caption="আপলোড করা স্ক্রিনশট/ছবি", width=300)
-            uploaded_file.seek(0)
-            image_base64 = base64.b64encode(uploaded_file.read()).decode('utf-8')
+            # রিসাইজ এবং কম্প্রেস করে বেস৬৪ তৈরি করা হচ্ছে
+            image_base64 = process_uploaded_image(uploaded_file)
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -457,25 +553,16 @@ with tab1:
             st.markdown(user_input)
 
         with st.chat_message("assistant"):
-            def response_generator():
-                try:
-                    if not client:
-                        yield "⚠️ দুঃখিত ভাই, এআই ইঞ্জিন এই মুহূর্তে সচল নেই। লাইব্রেরি আপলোড সম্পন্ন হতে দিন।"
-                        return
-
-                    if image_base64:
-                        response = client.chat.completions.create(
-                            model="llama-3.2-11b-vision-preview",
-                            messages=[{
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": f"You are Royal Bengal AI Machine. Default to replying in Bengali script. However, if the user explicitly asks you to reply in English or writes in English, reply in English. Look at the image and provide an EXTREMELY detailed, academic explanation. User Question: {user_input if user_input else 'এই ছবিটিতে কী আছে বিশদভাবে বুঝিয়ে বলো বন্ধু।'}"},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-                                ]
-                            }],
-                            stream=True
-                        )
-                    else:
+            if image_base64:
+                # 👁️ ইমেজ থাকলে সরাসরি HTTP POST কানেকশন দিয়ে ২-মডেল মেগা চেইনে সমাধান আনা হবে
+                full_response = st.write_stream(vision_response_generator(image_base64, user_input))
+            else:
+                # 💬 শুধু টেক্সটের ক্ষেত্রে নরমাল Groq SDK ব্যবহার হবে
+                def response_generator():
+                    try:
+                        if not client:
+                            yield "⚠️ দুঃখিত ভাই, এআই ইঞ্জিন এই মুহূর্তে সচল নেই। লাইব্রেরি আপলোড সম্পন্ন হতে দিন।"
+                            return
                         response = client.chat.completions.create(
                             model="llama-3.3-70b-versatile",
                             messages=[
@@ -494,13 +581,14 @@ with tab1:
                             ],
                             stream=True
                         )
-                    for chunk in response:
-                        content = chunk.choices[0].delta.content
-                        if content: yield content
-                except Exception as e:
-                    yield f"✨ ক্লাউড এপিআই রেসপন্স করতে পারেনি ভাই। এরর: {e}"
+                        for chunk in response:
+                            content = chunk.choices[0].delta.content
+                            if content: yield content
+                    except Exception as e:
+                        yield f"✨ ক্লাউড এপিআই রেসপন্স করতে পারেনি ভাই। এরর: {e}"
 
-            full_response = st.write_stream(response_generator())
+                full_response = st.write_stream(response_generator())
+                
             if "$$" in full_response:
                 try: st.latex(full_response.split("$$")[1])
                 except: pass
