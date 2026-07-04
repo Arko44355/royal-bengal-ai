@@ -11,6 +11,8 @@ import os
 import pdfplumber
 import sqlite3
 import base64
+import json
+import uuid
 from groq import Groq
 
 # ১. পেজ কনফিগারেশন
@@ -31,6 +33,16 @@ def init_db():
             password TEXT
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+            session_id TEXT PRIMARY KEY,
+            email TEXT,
+            title TEXT,
+            messages_json TEXT,
+            tab_name TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -47,6 +59,55 @@ if "math_messages" not in st.session_state:
     st.session_state.math_messages = []
 if "econ_messages" not in st.session_state:
     st.session_state.econ_messages = []
+
+# চ্যাট সেশন আইডি ট্র্যাকিং স্টেট
+if "current_session_id_tab1" not in st.session_state:
+    st.session_state.current_session_id_tab1 = None
+if "current_session_id_tab2" not in st.session_state:
+    st.session_state.current_session_id_tab2 = None
+if "current_session_id_tab3" not in st.session_state:
+    st.session_state.current_session_id_tab3 = None
+if "renaming_session_id" not in st.session_state:
+    st.session_state.renaming_session_id = None
+
+# 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ
+def save_session(session_id, email, title, messages, tab_name):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    messages_json = json.dumps(messages)
+    cursor.execute('''
+        INSERT OR REPLACE INTO chat_sessions (session_id, email, title, messages_json, tab_name, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ''', (session_id, email, title, messages_json, tab_name))
+    conn.commit()
+    conn.close()
+
+def get_sessions(email, tab_name):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT session_id, title, messages_json FROM chat_sessions 
+        WHERE email = ? AND tab_name = ? 
+        ORDER BY updated_at DESC
+    ''', (email, tab_name))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def delete_session(session_id):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM chat_sessions WHERE session_id = ?', (session_id,))
+    conn.commit()
+    conn.close()
+
+def rename_session(session_id, new_title):
+    conn = sqlite3.connect("users.db")
+    cursor = conn.cursor()
+    cursor.execute('UPDATE chat_sessions SET title = ? WHERE session_id = ?', (new_title, session_id))
+    conn.commit()
+    conn.close()
+
 
 # লগইন এবং সাইনআপ ইন্টারফেস
 if not st.session_state.logged_in:
@@ -103,12 +164,152 @@ st.title(f"🐅 Royal Bengal AI Machine - Welcome {st.session_state.user_profile
 with st.sidebar:
     st.header("🎛️ Control Panel")
     voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট অন করুন (Windows Only)")
+    
     if st.button("Logout 🚪"):
         st.session_state.logged_in = False
         st.session_state.messages = []
         st.session_state.math_messages = []
         st.session_state.econ_messages = []
+        st.session_state.current_session_id_tab1 = None
+        st.session_state.current_session_id_tab2 = None
+        st.session_state.current_session_id_tab3 = None
         st.rerun()
+        
+    st.markdown("---")
+    st.subheader("📁 আমার সংরক্ষিত চ্যাট হিস্ট্রি")
+    
+    # ক্যাটাগরি ১: AI Assistant চ্যাট হিস্ট্রি
+    with st.sidebar.expander("💬 AI Assistant চ্যাটসমূহ", expanded=False):
+        if st.button("➕ নতুন AI চ্যাট শুরু করুন", key="new_chat_t1", use_container_width=True):
+            st.session_state.messages = []
+            st.session_state.current_session_id_tab1 = None
+            st.rerun()
+            
+        sessions_t1 = get_sessions(st.session_state.user_profile['email'], "tab1")
+        for s_id, title, msg_json in sessions_t1:
+            col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
+            is_active = (s_id == st.session_state.current_session_id_tab1)
+            btn_label = f"📍 {title}" if is_active else title
+            
+            with col1:
+                if st.button(btn_label, key=f"load_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
+                    st.session_state.messages = json.loads(msg_json)
+                    st.session_state.current_session_id_tab1 = s_id
+                    st.rerun()
+            with col2:
+                if st.button("✏️", key=f"ren_btn_{s_id}", help="নাম পরিবর্তন করুন"):
+                    st.session_state.renaming_session_id = s_id
+                    st.rerun()
+            with col3:
+                if st.button("🗑️", key=f"del_{s_id}", help="মুছে ফেলুন"):
+                    delete_session(s_id)
+                    if is_active:
+                        st.session_state.messages = []
+                        st.session_state.current_session_id_tab1 = None
+                    st.rerun()
+                    
+            if st.session_state.renaming_session_id == s_id:
+                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_{s_id}")
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.button("সংরক্ষণ", key=f"save_ren_{s_id}", use_container_width=True):
+                        if new_name.strip():
+                            rename_session(s_id, new_name.strip())
+                        st.session_state.renaming_session_id = None
+                        st.rerun()
+                with col_cancel:
+                    if st.button("বাতিল", key=f"cancel_ren_{s_id}", use_container_width=True):
+                        st.session_state.renaming_session_id = None
+                        st.rerun()
+
+    # ক্যাটাগরি ২: Math Wave Solver হিস্ট্রি
+    with st.sidebar.expander("📊 Math Wave চ্যাটসমূহ", expanded=False):
+        if st.button("➕ নতুন Math চ্যাট শুরু করুন", key="new_chat_t2", use_container_width=True):
+            st.session_state.math_messages = []
+            st.session_state.current_session_id_tab2 = None
+            st.rerun()
+            
+        sessions_t2 = get_sessions(st.session_state.user_profile['email'], "tab2")
+        for s_id, title, msg_json in sessions_t2:
+            col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
+            is_active = (s_id == st.session_state.current_session_id_tab2)
+            btn_label = f"📍 {title}" if is_active else title
+            
+            with col1:
+                if st.button(btn_label, key=f"load_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
+                    st.session_state.math_messages = json.loads(msg_json)
+                    st.session_state.current_session_id_tab2 = s_id
+                    st.rerun()
+            with col2:
+                if st.button("✏️", key=f"ren_btn_{s_id}", help="নাম পরিবর্তন করুন"):
+                    st.session_state.renaming_session_id = s_id
+                    st.rerun()
+            with col3:
+                if st.button("🗑️", key=f"del_{s_id}", help="মুছে ফেলুন"):
+                    delete_session(s_id)
+                    if is_active:
+                        st.session_state.math_messages = []
+                        st.session_state.current_session_id_tab2 = None
+                    st.rerun()
+                    
+            if st.session_state.renaming_session_id == s_id:
+                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_{s_id}")
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.button("সংরক্ষণ", key=f"save_ren_{s_id}", use_container_width=True):
+                        if new_name.strip():
+                            rename_session(s_id, new_name.strip())
+                        st.session_state.renaming_session_id = None
+                        st.rerun()
+                with col_cancel:
+                    if st.button("বাতিল", key=f"cancel_ren_{s_id}", use_container_width=True):
+                        st.session_state.renaming_session_id = None
+                        st.rerun()
+
+    # ক্যাটাগরি ৩: Economics Demand হিস্ট্রি
+    with st.sidebar.expander("📈 Economics চ্যাটসমূহ", expanded=False):
+        if st.button("➕ নতুন Economics চ্যাট শুরু করুন", key="new_chat_t3", use_container_width=True):
+            st.session_state.econ_messages = []
+            st.session_state.current_session_id_tab3 = None
+            st.rerun()
+            
+        sessions_t3 = get_sessions(st.session_state.user_profile['email'], "tab3")
+        for s_id, title, msg_json in sessions_t3:
+            col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
+            is_active = (s_id == st.session_state.current_session_id_tab3)
+            btn_label = f"📍 {title}" if is_active else title
+            
+            with col1:
+                if st.button(btn_label, key=f"load_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
+                    st.session_state.econ_messages = json.loads(msg_json)
+                    st.session_state.current_session_id_tab3 = s_id
+                    st.rerun()
+            with col2:
+                if st.button("✏️", key=f"ren_btn_{s_id}", help="নাম পরিবর্তন করুন"):
+                    st.session_state.renaming_session_id = s_id
+                    st.rerun()
+            with col3:
+                if st.button("🗑️", key=f"del_{s_id}", help="মুছে ফেলুন"):
+                    delete_session(s_id)
+                    if is_active:
+                        st.session_state.econ_messages = []
+                        st.session_state.current_session_id_tab3 = None
+                    st.rerun()
+                    
+            if st.session_state.renaming_session_id == s_id:
+                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_{s_id}")
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.button("সংরক্ষণ", key=f"save_ren_{s_id}", use_container_width=True):
+                        if new_name.strip():
+                            rename_session(s_id, new_name.strip())
+                        st.session_state.renaming_session_id = None
+                        st.rerun()
+                with col_cancel:
+                    if st.button("বাতিল", key=f"cancel_ren_{s_id}", use_container_width=True):
+                        st.session_state.renaming_session_id = None
+                        st.rerun()
+
 
 # প্রধান ফিচার ট্যাব সমূহ
 tab1, tab2, tab3, tab4 = st.tabs(["💬 AI Assistant & Upload Solver", "📊 Math Wave", "📈 Economics Demand", "🎨 AI Image Generator"])
@@ -216,7 +417,24 @@ with tab1:
                 try: st.latex(full_response.split("$$")[1])
                 except: pass
             try_execute_graph(full_response)
+            
+            # --- ডাটাবেসে সেভ করার মেকানিজম ---
+            session_id = st.session_state.current_session_id_tab1
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                st.session_state.current_session_id_tab1 = session_id
+                title = user_input[:30] + ("..." if len(user_input) > 30 else "")
+            else:
+                conn = sqlite3.connect("users.db")
+                cursor = conn.cursor()
+                cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
+                row = cursor.fetchone()
+                conn.close()
+                title = row[0] if row else (user_input[:30] + ("..." if len(user_input) > 30 else ""))
+            
             st.session_state.messages.append({"role": "assistant", "content": full_response})
+            save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.messages, "tab1")
+            st.rerun()
 
 # 📊 ২. Math Wave Solver ট্যাব
 with tab2:
@@ -254,7 +472,24 @@ with tab2:
             
             full_response = st.write_stream(math_response_generator())
             try_execute_graph(full_response)
+            
+            # --- ডাটাবেসে সেভ করার মেকানিজম ---
+            session_id = st.session_state.current_session_id_tab2
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                st.session_state.current_session_id_tab2 = session_id
+                title = math_input[:30] + ("..." if len(math_input) > 30 else "")
+            else:
+                conn = sqlite3.connect("users.db")
+                cursor = conn.cursor()
+                cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
+                row = cursor.fetchone()
+                conn.close()
+                title = row[0] if row else (math_input[:30] + ("..." if len(math_input) > 30 else ""))
+                
             st.session_state.math_messages.append({"role": "assistant", "content": full_response})
+            save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.math_messages, "tab2")
+            st.rerun()
 
 # 📈 ৩. Economics Demand Analyzer ট্যাব
 with tab3:
@@ -292,7 +527,24 @@ with tab3:
             
             full_response = st.write_stream(econ_response_generator())
             try_execute_graph(full_response)
+            
+            # --- ডাটাবেসে সেভ করার মেকানিজম ---
+            session_id = st.session_state.current_session_id_tab3
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                st.session_state.current_session_id_tab3 = session_id
+                title = econ_input[:30] + ("..." if len(econ_input) > 30 else "")
+            else:
+                conn = sqlite3.connect("users.db")
+                cursor = conn.cursor()
+                cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
+                row = cursor.fetchone()
+                conn.close()
+                title = row[0] if row else (econ_input[:30] + ("..." if len(econ_input) > 30 else ""))
+                
             st.session_state.econ_messages.append({"role": "assistant", "content": full_response})
+            save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.econ_messages, "tab3")
+            st.rerun()
 
 # 🎨 ৪. AI Image Generator ট্যাব
 with tab4:
