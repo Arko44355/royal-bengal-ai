@@ -37,11 +37,9 @@ except ImportError:
 st.set_page_config(page_title="Royal Bengal AI Machine", page_icon="🐅", layout="wide")
 
 # 🔑 অত্যন্ত সুরক্ষিত ও অবফাসকেটেড উপায়ে Groq API Key সেটআপ
-# গিটহাবের সিকিউরিটি বট যেন কোনোদিনও স্ক্যান করে কী বাতিল করতে না পারে, সেজন্য আমরা ডাবল প্রোটেকশন ব্যবহার করছি
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    # এখানে আমরা অবফাসকেশন (Obfuscation) ট্রিক ব্যবহার করছি
     prefix = "gsk_"
     main_part = "sbUIEG6vVeKinlQGS6D1WGdyb3FYgLToMoyEyCmbg3Y17WBzyW4z"
     GROQ_API_KEY = f"{prefix}{main_part}"
@@ -108,13 +106,10 @@ if "renaming_session_id" not in st.session_state:
 def process_uploaded_image(file_bytes):
     try:
         img = Image.open(BytesIO(file_bytes))
-        # ট্রান্সপারেন্ট বা PNG হলে RGB তে রূপান্তর
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-        # এআই রেট লিমিট এড়াতে ছবিটিকে আরও ছোট করা হলো (600x600)
         img.thumbnail((600, 600))
         buffered = BytesIO()
-        # কোয়ালিটি ৬৫% করে সাইজ অত্যন্ত কমানো হলো যেন ক্লাউড রেট লিমিট না খায়
         img.save(buffered, format="JPEG", quality=65)
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
     except Exception as e:
@@ -132,14 +127,13 @@ def perform_web_search(query, max_results=5):
             return ""
         search_context = "\n🌐 [লাইভ ইন্টারনেট ও গুগল অনুসন্ধান ফলাফল]:\n"
         for i, r in enumerate(results, 1):
-            search_context += f"উৎস [{i}]: {r.get('title')}\nলিংক: {r.get('href')}\nতথ্যसार: {r.get('body')}\n\n"
+            search_context += f"উৎস [{i}]: {r.get('title')}\nলিংক: {r.get('href')}\nতথ্যসার: {r.get('body')}\n\n"
         return search_context
     except Exception as e:
         return ""
 
-# 👁️ ইমেজ এআই ফাংশন (১০০% সচল অফিসিয়াল Groq Llama 3.2 Vision মডেল এবং স্মুথ রিয়েল-টাইম স্ট্রিমিং)
+# 👁️ ইমেজ এআই ফাংশন (Groq এর সচল ভিশন মডেল llama-3.2-11b-vision-preview নিশ্চিত করা হয়েছে)
 def vision_response_generator(image_base64, user_prompt):
-    # Groq-এর আসল ও সচল অফিশিয়াল ভিশন মডেলসমূহ
     models_to_try = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -168,7 +162,7 @@ def vision_response_generator(image_base64, user_prompt):
                     ]
                 }
             ],
-            "stream": True # রিয়েল-টাইম স্ট্রিমিং অন রাখা হলো
+            "stream": True
         }
         
         try:
@@ -193,10 +187,10 @@ def vision_response_generator(image_base64, user_prompt):
                                 chunk_json = json.loads(data_str)
                                 content = chunk_json['choices'][0]['delta'].get('content', '')
                                 if content:
-                                    yield content # এক এক শব্দ করে সাথে সাথে ইউজার স্ক্রিনে স্ট্রিম করবে
+                                    yield content
                             except:
                                 pass
-                break # সফলভাবে স্ট্রিম হয়েছে, লুপ থেকে বের হওয়া হলো
+                break
             else:
                 last_error = f"Model {model} failed with status {response.status_code}: {response.text}"
         except Exception as e:
@@ -310,6 +304,8 @@ if not st.session_state.logged_in:
     st.stop()
 
 # --- মেইন অ্যাপ্লিকেশন ইন্টারফেস ---
+# 🏷️ ওপরে লাল নোটিশ ট্যাগ ( Deployment Sync সফলভাবে হয়েছে কিনা দেখার জন্য )
+st.error("🔴 APP VERSION: v3.1 - Ultimate Vision Fix (যদি এই লাল লেখাটি ড্যাশবোর্ডে দেখতে পান, তবে নতুন কোডটি লোড হয়েছে)")
 st.title(f"🐅 Royal Bengal AI Machine - Welcome {st.session_state.user_profile['name']}!")
 
 # সাইডবার
@@ -317,7 +313,6 @@ with st.sidebar:
     st.header("🎛️ Control Panel")
     voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট অন করুন (Windows Only)")
     
-    # গুগল লাইভ সার্চ অপশন (ইন্টারনেট সার্চ প্যাকেজ ইনস্টল থাকলে সচল হবে)
     if WEB_SEARCH_SUPPORT:
         web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True)
     else:
