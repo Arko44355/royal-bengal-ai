@@ -1,3 +1,4 @@
+
 import streamlit as st
 import requests
 import numpy as np
@@ -14,6 +15,7 @@ import base64
 import json
 import uuid
 from groq import Groq
+from duckduckgo_search import DDGS # গুগল ও ইন্টারনেট লাইভ সার্চের জন্য অত্যন্ত শক্তিশালী ফ্রি লাইব্রেরি
 
 # ১. পেজ কনফিগারেশন
 st.set_page_config(page_title="Royal Bengal AI Machine", page_icon="🐅", layout="wide")
@@ -69,6 +71,20 @@ if "current_session_id_tab3" not in st.session_state:
     st.session_state.current_session_id_tab3 = None
 if "renaming_session_id" not in st.session_state:
     st.session_state.renaming_session_id = None
+
+# 🌐 লাইভ ওয়েব সার্চ করার সহায়ক ফাংশন
+def perform_web_search(query, max_results=5):
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=max_results))
+        if not results:
+            return ""
+        search_context = "\n🌐 [লাইভ ইন্টারনেট ও গুগল অনুসন্ধান ফলাফল]:\n"
+        for i, r in enumerate(results, 1):
+            search_context += f"উৎস [{i}]: {r.get('title')}\nলিংক: {r.get('href')}\nতথ্যসার: {r.get('body')}\n\n"
+        return search_context
+    except Exception as e:
+        return f"\n⚠️ লাইভ সার্চ করতে সামান্য সমস্যা হয়েছে বন্ধু। এরর: {e}\n"
 
 # 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ
 def save_session(session_id, email, title, messages, tab_name):
@@ -164,6 +180,8 @@ st.title(f"🐅 Royal Bengal AI Machine - Welcome {st.session_state.user_profile
 with st.sidebar:
     st.header("🎛️ Control Panel")
     voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট অন করুন (Windows Only)")
+    # 🌐 গুগল লাইভ সার্চ টগল বোতাম
+    web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True, help="এআই প্রতিটি উত্তরের জন্য লাইভ ইন্টারনেট ব্রাউজ করে নিখুঁত ও আপ-টু-ডেট ডাটা সংগ্রহ করবে।")
     
     if st.button("Logout 🚪"):
         st.session_state.logged_in = False
@@ -192,16 +210,16 @@ with st.sidebar:
             btn_label = f"📍 {title}" if is_active else title
             
             with col1:
-                if st.button(btn_label, key=f"load_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
+                if st.button(btn_label, key=f"load_t1_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
                     st.session_state.messages = json.loads(msg_json)
                     st.session_state.current_session_id_tab1 = s_id
                     st.rerun()
             with col2:
-                if st.button("✏️", key=f"ren_btn_{s_id}", help="নাম পরিবর্তন করুন"):
+                if st.button("✏️", key=f"ren_btn_t1_{s_id}", help="নাম পরিবর্তন করুন"):
                     st.session_state.renaming_session_id = s_id
                     st.rerun()
             with col3:
-                if st.button("🗑️", key=f"del_{s_id}", help="মুছে ফেলুন"):
+                if st.button("🗑️", key=f"del_t1_{s_id}", help="মুছে ফেলুন"):
                     delete_session(s_id)
                     if is_active:
                         st.session_state.messages = []
@@ -209,16 +227,16 @@ with st.sidebar:
                     st.rerun()
                     
             if st.session_state.renaming_session_id == s_id:
-                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_{s_id}")
+                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_t1_{s_id}")
                 col_save, col_cancel = st.columns(2)
                 with col_save:
-                    if st.button("সংরক্ষণ", key=f"save_ren_{s_id}", use_container_width=True):
+                    if st.button("সংরক্ষণ", key=f"save_ren_t1_{s_id}", use_container_width=True):
                         if new_name.strip():
                             rename_session(s_id, new_name.strip())
                         st.session_state.renaming_session_id = None
                         st.rerun()
                 with col_cancel:
-                    if st.button("বাতিল", key=f"cancel_ren_{s_id}", use_container_width=True):
+                    if st.button("বাতিল", key=f"cancel_ren_t1_{s_id}", use_container_width=True):
                         st.session_state.renaming_session_id = None
                         st.rerun()
 
@@ -236,16 +254,16 @@ with st.sidebar:
             btn_label = f"📍 {title}" if is_active else title
             
             with col1:
-                if st.button(btn_label, key=f"load_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
+                if st.button(btn_label, key=f"load_t2_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
                     st.session_state.math_messages = json.loads(msg_json)
                     st.session_state.current_session_id_tab2 = s_id
                     st.rerun()
             with col2:
-                if st.button("✏️", key=f"ren_btn_{s_id}", help="নাম পরিবর্তন করুন"):
+                if st.button("✏️", key=f"ren_btn_t2_{s_id}", help="নাম পরিবর্তন করুন"):
                     st.session_state.renaming_session_id = s_id
                     st.rerun()
             with col3:
-                if st.button("🗑️", key=f"del_{s_id}", help="মুছে ফেলুন"):
+                if st.button("🗑️", key=f"del_t2_{s_id}", help="মুছে ফেলুন"):
                     delete_session(s_id)
                     if is_active:
                         st.session_state.math_messages = []
@@ -253,16 +271,16 @@ with st.sidebar:
                     st.rerun()
                     
             if st.session_state.renaming_session_id == s_id:
-                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_{s_id}")
+                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_t2_{s_id}")
                 col_save, col_cancel = st.columns(2)
                 with col_save:
-                    if st.button("সংরক্ষণ", key=f"save_ren_{s_id}", use_container_width=True):
+                    if st.button("সংরক্ষণ", key=f"save_ren_t2_{s_id}", use_container_width=True):
                         if new_name.strip():
                             rename_session(s_id, new_name.strip())
                         st.session_state.renaming_session_id = None
                         st.rerun()
                 with col_cancel:
-                    if st.button("বাতিল", key=f"cancel_ren_{s_id}", use_container_width=True):
+                    if st.button("বাতিল", key=f"cancel_ren_t2_{s_id}", use_container_width=True):
                         st.session_state.renaming_session_id = None
                         st.rerun()
 
@@ -280,16 +298,16 @@ with st.sidebar:
             btn_label = f"📍 {title}" if is_active else title
             
             with col1:
-                if st.button(btn_label, key=f"load_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
+                if st.button(btn_label, key=f"load_t3_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
                     st.session_state.econ_messages = json.loads(msg_json)
                     st.session_state.current_session_id_tab3 = s_id
                     st.rerun()
             with col2:
-                if st.button("✏️", key=f"ren_btn_{s_id}", help="নাম পরিবর্তন করুন"):
+                if st.button("✏️", key=f"ren_btn_t3_{s_id}", help="নাম পরিবর্তন করুন"):
                     st.session_state.renaming_session_id = s_id
                     st.rerun()
             with col3:
-                if st.button("🗑️", key=f"del_{s_id}", help="মুছে ফেলুন"):
+                if st.button("🗑️", key=f"del_t3_{s_id}", help="মুছে ফেলুন"):
                     delete_session(s_id)
                     if is_active:
                         st.session_state.econ_messages = []
@@ -297,16 +315,16 @@ with st.sidebar:
                     st.rerun()
                     
             if st.session_state.renaming_session_id == s_id:
-                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_{s_id}")
+                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_t3_{s_id}")
                 col_save, col_cancel = st.columns(2)
                 with col_save:
-                    if st.button("সংরক্ষণ", key=f"save_ren_{s_id}", use_container_width=True):
+                    if st.button("সংরক্ষণ", key=f"save_ren_t3_{s_id}", use_container_width=True):
                         if new_name.strip():
                             rename_session(s_id, new_name.strip())
                         st.session_state.renaming_session_id = None
                         st.rerun()
                 with col_cancel:
-                    if st.button("বাতিল", key=f"cancel_ren_{s_id}", use_container_width=True):
+                    if st.button("বাতিল", key=f"cancel_ren_t3_{s_id}", use_container_width=True):
                         st.session_state.renaming_session_id = None
                         st.rerun()
 
@@ -372,8 +390,17 @@ with tab1:
 
     if user_input := st.chat_input("আপনার প্রশ্নটি লিখুন বা আপলোড করা ফাইলটি ব্যাখ্যা করতে বলুন...", key="tab1_chat"):
         final_prompt = user_input
+        
+        # 🌐 গুগল সার্চ করা হচ্ছে যদি অপশন অন থাকে
+        search_info = ""
+        if web_search_enabled:
+            with st.spinner("🌐 গুগল ও ইন্টারনেট ব্রাউজ করে গবেষণা করা হচ্ছে... অনুগ্রহ করে একটু অপেক্ষা করুন..."):
+                search_info = perform_web_search(user_input)
+
         if extracted_context:
-            final_prompt = f"Context from uploaded file:\n{extracted_context}\n\nUser Question: {user_input}"
+            final_prompt = f"Context from uploaded file:\n{extracted_context}\n\n{search_info}\nUser Question: {user_input}"
+        elif search_info:
+            final_prompt = f"{search_info}\nUser Question: {user_input}"
             
         st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
@@ -388,7 +415,7 @@ with tab1:
                             messages=[{
                                 "role": "user",
                                 "content": [
-                                    {"type": "text", "text": f"You are Royal Bengal AI Machine. Default to replying in Bengali script. However, if the user explicitly asks you to reply in English or writes in English, reply in English. User Question: {user_input if user_input else 'এই ছবিটিতে কী আছে বুঝিয়ে বলো বন্ধু।'}"},
+                                    {"type": "text", "text": f"You are Royal Bengal AI Machine. Default to replying in Bengali script. However, if the user explicitly asks you to reply in English or writes in English, reply in English. Look at the image and provide an EXTREMELY detailed, academic explanation. User Question: {user_input if user_input else 'এই ছবিটিতে কী আছে বিশদভাবে বুঝিয়ে বলো বন্ধু।'}"},
                                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
                                 ]
                             }],
@@ -400,7 +427,14 @@ with tab1:
                             messages=[
                                 {
                                     "role": "system", 
-                                    "content": "You are Royal Bengal AI Machine, a close friend of the user created by Md Mohtasim Billah. Default to replying in beautiful Bengali script. However, if the user explicitly requests English or writes in English, you MUST reply in English. Wrap math formulas in $$ if needed."
+                                    "content": (
+                                        "You are Royal Bengal AI Machine, an Elite Academic Scholar, Research Professor, and close friend of the user created by Md Mohtasim Billah. "
+                                        "CRITICAL INSTRUCTION: Your primary goal is to provide **highly detailed, comprehensive, exhaustive, and deeply researched answers** on all subjects (Science, Humanities, Arts, Business Studies, History, Mathematics, etc.). "
+                                        "Never write short or medium summaries unless explicitly requested. Always write comprehensive solutions like a university-level lecture note or textbook. "
+                                        "Structure your answers using professional Markdown headings, bullet points, and numbered lists. Include definitions, historical contexts, core theories, step-by-step math breakdowns, case studies/examples, and robust conclusions. "
+                                        "If Web Search Results are provided, analyze and synthesize them masterfully, cite the key facts, and present the most accurate, comprehensive, and up-to-date answer. "
+                                        "Default to replying in beautiful Bengali script. However, if the user requests English or writes in English, you MUST reply in highly articulate English. Wrap all mathematical or scientific formulas in LaTeX display style using $$."
+                                    )
                                 },
                                 {"role": "user", "content": final_prompt}
                             ],
@@ -451,6 +485,16 @@ with tab2:
             st.markdown(math_input)
             
         with st.chat_message("assistant"):
+            # 🌐 ম্যাথের জন্যও লাইভ সার্চ করা হচ্ছে
+            search_info = ""
+            if web_search_enabled:
+                with st.spinner("🌐 গাণিতিক তথ্য গুগলে অনুসন্ধান করা হচ্ছে..."):
+                    search_info = perform_web_search(math_input)
+            
+            final_math_prompt = math_input
+            if search_info:
+                final_math_prompt = f"{search_info}\nUser Question: {math_input}"
+
             def math_response_generator():
                 try:
                     response = client.chat.completions.create(
@@ -458,9 +502,17 @@ with tab2:
                         messages=[
                             {
                                 "role": "system", 
-                                "content": "You are a Math Expert AI. Default to replying in Bengali script. However, if the user asks in English or requests English, you MUST reply in English. CRITICAL: If the user wants a graph, you MUST write python code using plotly.graph_objects as go and numpy as np. Wrap the code inside triple backticks using the language identifier 'python'. Always name the figure variable 'fig'. Example: fig = go.Figure(). Then st.plotly_chart will render it."
+                                "content": (
+                                    "You are an Elite Mathematician and University Math Professor. "
+                                    "Your goal is to provide EXTREMELY thorough, detailed, and rigorous mathematical solutions. "
+                                    "Explain the mathematical principles step-by-step with proofs, theorems, and real-world applications. "
+                                    "Always write the equations in LaTeX style using $$. "
+                                    "Default to replying in Bengali script. However, if the user asks in English or requests English, you MUST reply in English. "
+                                    "CRITICAL: If the user wants a graph, you MUST write python code using plotly.graph_objects as go and numpy as np. "
+                                    "Wrap the code inside triple backticks using the language identifier 'python'. Always name the figure variable 'fig'. Example: fig = go.Figure()."
+                                )
                             },
-                            {"role": "user", "content": math_input}
+                            {"role": "user", "content": final_math_prompt}
                         ],
                         stream=True
                     )
@@ -506,6 +558,16 @@ with tab3:
             st.markdown(econ_input)
             
         with st.chat_message("assistant"):
+            # 🌐 ইকোনমিক্সের জন্যও লাইভ সার্চ করা হচ্ছে
+            search_info = ""
+            if web_search_enabled:
+                with st.spinner("🌐 অর্থনীতি সংক্রান্ত লাইভ তথ্য গুগলে অনুসন্ধান করা হচ্ছে..."):
+                    search_info = perform_web_search(econ_input)
+            
+            final_econ_prompt = econ_input
+            if search_info:
+                final_econ_prompt = f"{search_info}\nUser Question: {econ_input}"
+
             def econ_response_generator():
                 try:
                     response = client.chat.completions.create(
@@ -513,9 +575,16 @@ with tab3:
                         messages=[
                             {
                                 "role": "system", 
-                                "content": "You are an Economics Professor AI. Default to replying in Bengali script. However, if the user asks in English or requests English, you MUST reply in English. CRITICAL: If you explain a demand/supply curve, generate Python code using plotly.graph_objects as go to draw the curve. Wrap the code in triple backticks with the 'python' language identifier. Name the figure variable 'fig'."
+                                "content": (
+                                    "You are an Economics Professor and Nobel Laureate level Researcher AI. "
+                                    "Provide highly structured, long, and comprehensive economic analyses. "
+                                    "Use detailed market models, demand/supply elasticity theories, historical context, and mathematical equations (wrapped in $$). "
+                                    "Default to replying in Bengali script. However, if the user asks in English or requests English, you MUST reply in English. "
+                                    "CRITICAL: If you explain a demand/supply curve, generate Python code using plotly.graph_objects as go to draw the curve. "
+                                    "Wrap the code in triple backticks with the 'python' language identifier. Name the figure variable 'fig'."
+                                )
                             },
-                            {"role": "user", "content": econ_input}
+                            {"role": "user", "content": final_econ_prompt}
                         ],
                         stream=True
                     )
@@ -550,3 +619,4 @@ with tab3:
 with tab4:
     st.subheader("🎨 AI Image Generator")
     st.write("দুঃখিত ! টেক্সট-টু-ইমেজ জেনারেশন মডেলটি এখনো ক্লাউডে কনফিগার করা হচ্ছে। খুব শীঘ্রই এখানে ছবি তৈরির ইঞ্জিন যুক্ত হবে।")
+
