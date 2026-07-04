@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from PIL import Image
 import os
 import pdfplumber
-import win32com.client
+
 import sqlite3
 import base64
 from groq import Groq
@@ -204,13 +204,7 @@ with tab1:
                 except:
                     pass
 
-            # 🎙️ উইন্ডোজ ভয়েস অ্যাসিস্ট্যান্ট
-            if voice_on:
-                try:
-                    speaker = win32com.client.Dispatch("SAPI.SpVoice")
-                    speaker.Speak(full_response, 1)
-                except:
-                    pass
+           
                     
             # লাইভ গ্রাফ এক্সিকিউটর
             if "fig =" in full_response or "go.Figure" in full_response:
