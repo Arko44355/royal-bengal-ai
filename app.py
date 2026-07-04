@@ -14,7 +14,7 @@ import base64
 import json
 import uuid
 
-# 🛡️ বুলেটপ্রুফ ইমপোর্ট গার্ডরেল (কোনো প্যাকেজ মিসিং থাকলেও অ্যাপ ক্র্যাশ করবে না)
+# 🛡️ বুলেটপ্রুফ ইমপোর্ট গার্ডরেল
 try:
     import pdfplumber
     PDF_SUPPORT = True
@@ -36,22 +36,7 @@ except ImportError:
 # ১. পেজ কনফিগারেশন
 st.set_page_config(page_title="Royal Bengal AI Machine", page_icon="🐅", layout="wide")
 
-# 🔑 অত্যন্ত সুরক্ষিত ও অবফাসকেটেড উপায়ে Groq API Key সেটআপ
-if "GROQ_API_KEY" in st.secrets:
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-else:
-    prefix = "gsk_"
-    main_part = "sbUIEG6vVeKinlQGS6D1WGdyb3FYgLToMoyEyCmbg3Y17WBzyW4z"
-    GROQ_API_KEY = f"{prefix}{main_part}"
-
-client = None
-if GROQ_SUPPORT:
-    try:
-        client = Groq(api_key=GROQ_API_KEY)
-    except Exception as e:
-        st.error(f"Groq Client ইনিশিয়েলাইজ করতে সমস্যা: {e}")
-
-# 🗄️ ডেটাবেস সেটআপ (Timeout যুক্ত করে থ্রেড-সেফ করা হয়েছে)
+# ২. ডেটাবেস সেটআপ
 def get_db_connection():
     return sqlite3.connect("users.db", timeout=10, check_same_thread=False)
 
@@ -80,7 +65,7 @@ def init_db():
 
 init_db()
 
-# ২. সেশন স্টেট ইনিশিয়েলাইজেশন
+# ৩. সেশন স্টেট ইনিশিয়েলাইজেশন
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_profile" not in st.session_state:
@@ -102,7 +87,7 @@ if "current_session_id_tab3" not in st.session_state:
 if "renaming_session_id" not in st.session_state:
     st.session_state.renaming_session_id = None
 
-# 📸 পয়েন্টার ও মেমোরি সেফ আল্ট্রা-কম্প্রেসর (ইমেজের সাইজ কমিয়ে ৩০-৪০ কিলোবাইটে আনবে)
+# 📸 ইমেজ লাইটওয়েট কম্প্রেসর (রেট লিমিট এড়াতে সাইজ অত্যন্ত কমানো হলো)
 def process_uploaded_image(file_bytes):
     try:
         img = Image.open(BytesIO(file_bytes))
@@ -110,10 +95,10 @@ def process_uploaded_image(file_bytes):
             img = img.convert("RGB")
         img.thumbnail((600, 600))
         buffered = BytesIO()
-        img.save(buffered, format="JPEG", quality=65)
+        img.save(buffered, format="JPEG", quality=60)
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
     except Exception as e:
-        st.error(f"⚠️ ইমেজ প্রসেস করতে সমস্যা হয়েছে বন্ধু: {e}")
+        st.error(f"⚠️ ইমেজ প্রসেস করতে সমস্যা হয়েছে: {e}")
         return ""
 
 # 🌐 সেফ লাইভ ওয়েব সার্চ করার ফাংশন
@@ -125,98 +110,14 @@ def perform_web_search(query, max_results=5):
             results = list(ddgs.text(query, max_results=max_results))
         if not results:
             return ""
-        search_context = "\n🌐 [লাইভ ইন্টারনেট ও গুগল অনুসন্ধান ফলাফল]:\n"
+        search_context = "\n🌐 [লাইভ ইন্টারনেট অনুসন্ধান ফলাফল]:\n"
         for i, r in enumerate(results, 1):
-            search_context += f"উৎস [{i}]: {r.get('title')}\nলিংক: {r.get('href')}\nতথ্যসার: {r.get('body')}\n\n"
+            search_context += f"উৎস [{i}]: {r.get('title')}\nতথ্যসার: {r.get('body')}\n\n"
         return search_context
     except Exception as e:
         return ""
 
-# 🛠️ ডাইনামিক মডেল অনুসন্ধান ফাংশন (গ্রক সার্ভার থেকে রিয়েল-টাইমে সচল ভিশন মডেলের নাম খুঁজে নেবে)
-def get_available_vision_models():
-    fallback_models = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
-    try:
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-        response = requests.get("https://api.groq.com/openai/v1/models", headers=headers, timeout=10)
-        if response.status_code == 200:
-            models_data = response.json().get("data", [])
-            # যে মডেলগুলোর নামের ভেতরে 'vision' বা 'multimodal' আছে তাদের ফিল্টার করা হচ্ছে
-            active_vision_models = [m["id"] for m in models_data if "vision" in m["id"].lower()]
-            if active_vision_models:
-                return active_vision_models
-    except Exception as e:
-        pass
-    return fallback_models
-
-# 👁️ ইমেজ এআই ফাংশন (ডাইনামিক মডেল ডিটেকশন ও রিয়েল-টাইম স্মুথ স্ট্রিমিং)
-def vision_response_generator(image_base64, user_prompt):
-    # রিয়েল টাইমে সচল ভিশন মডেলের তালিকা বের করা হচ্ছে
-    models_to_try = get_available_vision_models()
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    text_content = (
-        "You are Royal Bengal AI Machine, an Elite Academic Scholar, Research Professor, and close friend of the user created by Md Mohtasim Billah. "
-        "Default to replying in beautiful Bengali script. However, if the user explicitly asks you to reply in English or writes in English, reply in English. "
-        "Look at the image and provide an EXTREMELY detailed, academic explanation, step-by-step calculations, or rigorous proofs. "
-        f"User Question: {user_prompt if user_prompt else 'এই ছবিটিতে কী আছে বিশদভাবে বুঝিয়ে বলো বন্ধু।'}"
-    )
-
-    success = False
-    last_error = ""
-
-    for model in models_to_try:
-        payload = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": text_content},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-                    ]
-                }
-            ],
-            "stream": True
-        }
-        
-        try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                stream=True,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                success = True
-                for line in response.iter_lines():
-                    if line:
-                        decoded_line = line.decode('utf-8').strip()
-                        if decoded_line.startswith("data:"):
-                            data_str = decoded_line[5:].strip()
-                            if data_str == "[DONE]":
-                                break
-                            try:
-                                chunk_json = json.loads(data_str)
-                                content = chunk_json['choices'][0]['delta'].get('content', '')
-                                if content:
-                                    yield content
-                            except:
-                                pass
-                break # সফলভাবে স্ট্রিম সম্পন্ন হলে লুপ শেষ
-            else:
-                last_error = f"Model {model} failed with status {response.status_code}: {response.text}"
-        except Exception as e:
-            last_error = f"Model {model} error: {str(e)}"
-            
-    if not success:
-        yield f"✨ দুঃখিত ভাই, এআই ক্লাউড ইঞ্জিন ছবি প্রসেস করতে পারেনি। সর্বশেষ সমস্যা: {last_error}"
-
-# 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ (থ্রেড-সেফ)
+# 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ
 def save_session(session_id, email, title, messages, tab_name):
     try:
         conn = get_db_connection()
@@ -321,18 +222,39 @@ if not st.session_state.logged_in:
     st.stop()
 
 # --- মেইন অ্যাপ্লিকেশন ইন্টারফেস ---
-st.error("🔴 APP VERSION: v3.2 - Auto-Discovery Engine (ডাইনামিক ভিশন মডেল সার্চ সচল)")
 st.title(f"🐅 Royal Bengal AI Machine - Welcome {st.session_state.user_profile['name']}!")
 
 # সাইডবার
 with st.sidebar:
     st.header("🎛️ Control Panel")
+    
+    # 🔑 কাস্টম এপিআই কী ইনপুট বক্স
+    st.subheader("🔑 API Key Controller")
+    user_key = st.text_input("Groq API Key (ঐচ্ছিক)", type="password", help="গিটহাব যদি আপনার কী ব্লক করে দেয়, তবে সরাসরি এখানে নতুন কী পেস্ট করে দিন।")
+    
+    if user_key.strip():
+        GROQ_API_KEY = user_key.strip()
+    elif "GROQ_API_KEY" in st.secrets:
+        GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    else:
+        prefix = "gsk_"
+        main_part = "sbUIEG6vVeKinlQGS6D1WGdyb3FYgLToMoyEyCmbg3Y17WBzyW4z"
+        GROQ_API_KEY = f"{prefix}{main_part}"
+
+    # Groq Client ইনিশিয়েলাইজ
+    client = None
+    if GROQ_SUPPORT and GROQ_API_KEY:
+        try:
+            client = Groq(api_key=GROQ_API_KEY)
+        except Exception as e:
+            st.error(f"Groq Client ইনিশিয়েলাইজ করতে সমস্যা: {e}")
+
     voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট অন করুন (Windows Only)")
     
     if WEB_SEARCH_SUPPORT:
         web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True)
     else:
-        st.warning("⚠️ ক্লাউড সার্ভারে লাইভ সার্চ এই মুহূর্তে নিষ্ক্রিয় আছে বন্ধু।")
+        st.warning("⚠️ লাইভ সার্চ এই মুহূর্তে নিষ্ক্রিয় আছে বন্ধু।")
         web_search_enabled = False
     
     if st.button("Logout 🚪", use_container_width=True):
@@ -539,7 +461,7 @@ with tab1:
             try:
                 with pdfplumber.open(BytesIO(file_bytes)) as pdf:
                     extracted_context = "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
-                st.info(f"📄 PDF থেকে তথ্য নেওয়া হয়েছে")
+                st.info(f"📄 PDF থেকে তথ্য নেওয়া হয়েছে")
             except Exception as e:
                 st.error(f"PDF রিড করতে সমস্যা হয়েছে: {e}")
         elif uploaded_file.name.split('.')[-1].lower() in ["png", "jpg", "jpeg"]:
@@ -567,36 +489,55 @@ with tab1:
             st.markdown(user_input)
 
         with st.chat_message("assistant"):
-            if image_base64:
-                # 🚀 ইমেজ সলভিং-এর জন্য নিখুঁত রিয়েল-টাইম ডাইনামিক স্ট্রিমিং হ্যান্ডলার
-                full_response = st.write_stream(vision_response_generator(image_base64, user_input))
+            full_response = ""
+            if not client:
+                st.error("⚠️ Groq Client ইনিশিয়েলাইজ করা যায়নি। দয়া করে সাইডবারে সঠিক API Key দিন।")
             else:
-                def response_generator():
+                with st.spinner("🐯 এআই সমাধান তৈরি করছে... অনুগ্রহ করে অপেক্ষা করুন..."):
                     try:
-                        if not client:
-                            yield "⚠️ এআই ইঞ্জিন এই মুহূর্তে সচল নেই।"
-                            return
-                        response = client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=[
-                                {
-                                    "role": "system", 
-                                    "content": (
-                                        "You are Royal Bengal AI Machine, created by Md Mohtasim Billah. Default to Bengali. Provide exhaustive university-level academic answers. Use $$ for LaTeX formulas."
-                                    )
-                                },
-                                {"role": "user", "content": final_prompt}
-                            ],
-                            stream=True
-                        )
-                        for chunk in response:
-                            content = chunk.choices[0].delta.content
-                            if content: yield content
+                        if image_base64:
+                            # 👁️ সরাসরি নন-স্ট্রিমিং মোডে অতি সরল ও নির্ভরযোগ্য ছবি সমাধান
+                            text_content = (
+                                "You are Royal Bengal AI Machine, an Elite Academic Scholar and close friend of the user. "
+                                "Provide highly detailed, step-by-step academic solutions. Default to beautiful Bengali script. "
+                                f"User Question: {user_input if user_input else 'এই ছবিটির ব্যাখ্যা দাও বন্ধু।'}"
+                            )
+                            completion = client.chat.completions.create(
+                                model="llama-3.2-11b-vision-preview",
+                                messages=[
+                                    {
+                                        "role": "user",
+                                        "content": [
+                                            {"type": "text", "text": text_content},
+                                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+                                        ]
+                                    }
+                                ],
+                                stream=False
+                            )
+                            full_response = completion.choices[0].message.content
+                        else:
+                            # 💬 নন-স্ট্রিমিং টেক্সট চ্যাট
+                            completion = client.chat.completions.create(
+                                model="llama-3.3-70b-versatile",
+                                messages=[
+                                    {
+                                        "role": "system", 
+                                        "content": "You are Royal Bengal AI Machine. Default to beautiful Bengali script. Provide deeply researched exhaustive university-level academic answers. Use $$ for LaTeX."
+                                    },
+                                    {"role": "user", "content": final_prompt}
+                                ],
+                                stream=False
+                            )
+                            full_response = completion.choices[0].message.content
+                            
+                        # সরাসরি সম্পূর্ণ উত্তরটি স্ক্রিনে দেখানো হবে
+                        st.markdown(full_response)
+                        
                     except Exception as e:
-                        yield f"✨ ক্লাউড এপিআই রেসপন্স করতে পারেনি ভাই। এরর: {e}"
+                        st.error(f"✨ ক্লাউড সার্ভার থেকে রেসপন্স পেতে সমস্যা হয়েছে। অনুগ্রহ করে সাইডবার থেকে API Key চেক করুন বা ক্যাশ ক্লিয়ার করুন। এরর: {e}")
+                        full_response = "⚠️ কোনো সমাধান জেনারেট করা সম্ভব হয়নি।"
 
-                full_response = st.write_stream(response_generator())
-                
             if "$$" in full_response:
                 try: st.latex(full_response.split("$$")[1])
                 except: pass
@@ -635,33 +576,33 @@ with tab2:
             st.markdown(math_input)
             
         with st.chat_message("assistant"):
-            search_info = ""
-            if web_search_enabled and WEB_SEARCH_SUPPORT:
-                with st.spinner("🌐 গাণিতিক তথ্য অনুসন্ধান করা হচ্ছে..."):
-                    search_info = perform_web_search(math_input)
-            
-            final_math_prompt = math_input
-            if search_info:
-                final_math_prompt = f"{search_info}\nUser Question: {math_input}"
+            full_response = ""
+            if not client:
+                st.error("⚠️ Groq Client সচল নেই।")
+            else:
+                with St = st.spinner("🌐 গাণিতিক তথ্য অনুসন্ধান ও সমাধান করা হচ্ছে..."):
+                    try:
+                        search_info = ""
+                        if web_search_enabled and WEB_SEARCH_SUPPORT:
+                            search_info = perform_web_search(math_input)
+                        
+                        final_math_prompt = math_input
+                        if search_info:
+                            final_math_prompt = f"{search_info}\nUser Question: {math_input}"
 
-            def math_response_generator():
-                try:
-                    if not client: return
-                    response = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[
-                            {"role": "system", "content": "You are a Math Professor. Default to Bengali. Use $$ for equations. Wrap plotly figures in triple backticks python and use fig variable."},
-                            {"role": "user", "content": final_math_prompt}
-                        ],
-                        stream=True
-                    )
-                    for chunk in response:
-                        content = chunk.choices[0].delta.content
-                        if content: yield content
-                except Exception as e:
-                    yield f"✨ এরর: {e}"
+                        completion = client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=[
+                                {"role": "system", "content": "You are a Math Professor. Default to Bengali. Use $$ for equations. Wrap plotly figures in triple backticks python and use fig variable."},
+                                {"role": "user", "content": final_math_prompt}
+                            ],
+                            stream=False
+                        )
+                        full_response = completion.choices[0].message.content
+                        st.markdown(full_response)
+                    except Exception as e:
+                        st.error(f"ম্যাথ সমাধান করতে সমস্যা হয়েছে: {e}")
             
-            full_response = st.write_stream(math_response_generator())
             try_execute_graph(full_response)
             
             session_id = st.session_state.current_session_id_tab2
@@ -697,33 +638,33 @@ with tab3:
             st.markdown(econ_input)
             
         with st.chat_message("assistant"):
-            search_info = ""
-            if web_search_enabled and WEB_SEARCH_SUPPORT:
-                with st.spinner("🌐 অর্থনীতি সংক্রান্ত লাইভ তথ্য অনুসন্ধান করা হচ্ছে..."):
-                    search_info = perform_web_search(econ_input)
-            
-            final_econ_prompt = econ_input
-            if search_info:
-                final_econ_prompt = f"{search_info}\nUser Question: {econ_input}"
+            full_response = ""
+            if not client:
+                st.error("⚠️ Groq Client সচল নেই।")
+            else:
+                with st.spinner("🌐 অর্থনীতি সংক্রান্ত লাইভ তথ্য অনুসন্ধান ও বিশ্লেষণ করা হচ্ছে..."):
+                    try:
+                        search_info = ""
+                        if web_search_enabled and WEB_SEARCH_SUPPORT:
+                            search_info = perform_web_search(econ_input)
+                        
+                        final_econ_prompt = econ_input
+                        if search_info:
+                            final_econ_prompt = f"{search_info}\nUser Question: {econ_input}"
 
-            def econ_response_generator():
-                try:
-                    if not client: return
-                    response = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[
-                            {"role": "system", "content": "You are an Economics Professor. Default to Bengali. Use $$ for formulas. If drawing a curve, write plotly code using fig variable."},
-                            {"role": "user", "content": final_econ_prompt}
-                        ],
-                        stream=True
-                    )
-                    for chunk in response:
-                        content = chunk.choices[0].delta.content
-                        if content: yield content
-                except Exception as e:
-                    yield f"✨ এরর: {e}"
+                        completion = client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=[
+                                {"role": "system", "content": "You are an Economics Professor. Default to Bengali. Use $$ for formulas. If drawing a curve, write plotly code using fig variable."},
+                                {"role": "user", "content": final_econ_prompt}
+                            ],
+                            stream=False
+                        )
+                        full_response = completion.choices[0].message.content
+                        st.markdown(full_response)
+                    except Exception as e:
+                        st.error(f"অর্থনীতি সমাধান করতে সমস্যা হয়েছে: {e}")
             
-            full_response = st.write_stream(econ_response_generator())
             try_execute_graph(full_response)
             
             session_id = st.session_state.current_session_id_tab3
