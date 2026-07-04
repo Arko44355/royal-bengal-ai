@@ -102,7 +102,7 @@ if "current_session_id_tab3" not in st.session_state:
 if "renaming_session_id" not in st.session_state:
     st.session_state.renaming_session_id = None
 
-# 📸 পয়েন্টার ও মেমোরি সেফ আল্ট্রা-কম্প্রেসর (ইমেজ সাইজ কমিয়ে ৩০-৪০ কিলোবাইটে আনবে)
+# 📸 পয়েন্টার ও মেমোরি সেফ আল্ট্রা-কম্প্রেসর (ইмеется সাইজ কমিয়ে ৩০-৪০ কিলোবাইটে আনবে)
 def process_uploaded_image(file_bytes):
     try:
         img = Image.open(BytesIO(file_bytes))
@@ -132,7 +132,7 @@ def perform_web_search(query, max_results=5):
     except Exception as e:
         return ""
 
-# 👁️ ইমেজ এআই ফাংশন (Groq এর একদম নতুন সচল মডেল meta-llama/llama-4-scout-17b-16e-instruct দিয়ে আপডেট করা হয়েছে)
+# 👁️ ইমেজ এআই ফাংশন (১০০% স্মুথ রিয়েল-টাইম স্ট্রিমিং জেনারেটর)
 def vision_response_generator(image_base64, user_prompt):
     models_to_try = ["meta-llama/llama-4-scout-17b-16e-instruct"]
     headers = {
@@ -146,9 +146,6 @@ def vision_response_generator(image_base64, user_prompt):
         "Look at the image and provide an EXTREMELY detailed, academic explanation, step-by-step calculations, or rigorous proofs. "
         f"User Question: {user_prompt if user_prompt else 'এই ছবিটিতে কী আছে বিশদভাবে বুঝিয়ে বলো বন্ধু।'}"
     )
-
-    success = False
-    last_error = ""
 
     for model in models_to_try:
         payload = {
@@ -175,7 +172,6 @@ def vision_response_generator(image_base64, user_prompt):
             )
             
             if response.status_code == 200:
-                success = True
                 for line in response.iter_lines():
                     if line:
                         decoded_line = line.decode('utf-8').strip()
@@ -190,14 +186,13 @@ def vision_response_generator(image_base64, user_prompt):
                                     yield content
                             except:
                                 pass
-                break
+                return
             else:
-                last_error = f"Model {model} failed with status {response.status_code}: {response.text}"
+                continue
         except Exception as e:
-            last_error = f"Model {model} error: {str(e)}"
+            continue
             
-    if not success:
-        yield f"✨ দুঃখিত ভাই, এআই ক্লাউড ইঞ্জিন ছবি প্রসেস করতে পারেনি। সর্বশেষ সমস্যা: {last_error}"
+    yield "✨ দুঃখিত ভাই, এআই ক্লাউড ইঞ্জিন ছবি প্রসেস করতে পারেনি। অনুগ্রহ করে নতুন করে চেষ্টা করুন।"
 
 # 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ (থ্রেড-সেফ)
 def save_session(session_id, email, title, messages, tab_name):
@@ -550,6 +545,7 @@ with tab1:
 
         with st.chat_message("assistant"):
             if image_base64:
+                # 🚀 ইমেজ সলভিং-এর জন্য রিয়েল-টাইম স্ট্রিমিং হ্যান্ডলার
                 full_response = st.write_stream(vision_response_generator(image_base64, user_input))
             else:
                 def response_generator():
