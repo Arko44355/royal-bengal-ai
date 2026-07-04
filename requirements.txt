@@ -1,0 +1,7 @@
+streamlit
+requests
+numpy
+plotly
+pillow
+pdfplumber
+groq
