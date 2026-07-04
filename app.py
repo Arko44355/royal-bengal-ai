@@ -168,7 +168,7 @@ def perform_web_search(query, max_results=5):
             return ""
         search_context = "\n🌐 [লাইভ ইন্টারনেট অনুসন্ধান ফলাফল]:\n"
         for i, r in enumerate(results, 1):
-            search_context += f"উৎস [{i}]: {r.get('title')}\nতথ্যসার: {r.get('body')}\n\n"
+            search_context += f"উৎস [{i}]: {r.get('title')}\n정보সার: {r.get('body')}\n\n"
         return search_context
     except Exception as e:
         return ""
@@ -580,7 +580,7 @@ with tab2:
             if not client:
                 st.error("⚠️ Groq Client সচল নেই।")
             else:
-                # 🔴 এখানে pure এবং নিখুঁত with st.spinner ব্যবহার করা হলো (কোনো অ্যাসাইনমেন্ট ভুল নেই!)
+                # 🔴 এখানে একদম ফ্রেশ, টাইপো মুক্ত with st.spinner ব্যবহার করা হলো
                 with st.spinner("🌐 গাণিতিক তথ্য অনুসন্ধান ও সমাধান করা হচ্ছে..."):
                     try:
                         search_info = ""
