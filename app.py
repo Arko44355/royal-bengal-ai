@@ -102,7 +102,7 @@ if "current_session_id_tab3" not in st.session_state:
 if "renaming_session_id" not in st.session_state:
     st.session_state.renaming_session_id = None
 
-# 📸 পয়েন্টার ও মেমোরি সেফ আল্ট্রা-কম্প্রেসর (ইমেজ সাইজ কমিয়ে ৩০-৪০ কিলোবাইটে আনবে)
+# 📸 পয়েন্টার ও মেমোরি সেফ আল্ট্রা-কম্প্রেসর (ইমেজের সাইজ কমিয়ে ৩০-৪০ কিলোবাইটে আনবে)
 def process_uploaded_image(file_bytes):
     try:
         img = Image.open(BytesIO(file_bytes))
@@ -132,9 +132,26 @@ def perform_web_search(query, max_results=5):
     except Exception as e:
         return ""
 
-# 👁️ ইমেজ এআই ফাংশন (Groq এর সচল ভিশন মডেল llama-3.2-11b-vision-preview নিশ্চিত করা হয়েছে)
+# 🛠️ ডাইনামিক মডেল অনুসন্ধান ফাংশন (গ্রক সার্ভার থেকে রিয়েল-টাইমে সচল ভিশন মডেলের নাম খুঁজে নেবে)
+def get_available_vision_models():
+    fallback_models = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
+    try:
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+        response = requests.get("https://api.groq.com/openai/v1/models", headers=headers, timeout=10)
+        if response.status_code == 200:
+            models_data = response.json().get("data", [])
+            # যে মডেলগুলোর নামের ভেতরে 'vision' বা 'multimodal' আছে তাদের ফিল্টার করা হচ্ছে
+            active_vision_models = [m["id"] for m in models_data if "vision" in m["id"].lower()]
+            if active_vision_models:
+                return active_vision_models
+    except Exception as e:
+        pass
+    return fallback_models
+
+# 👁️ ইমেজ এআই ফাংশন (ডাইনামিক মডেল ডিটেকশন ও রিয়েল-টাইম স্মুথ স্ট্রিমিং)
 def vision_response_generator(image_base64, user_prompt):
-    models_to_try = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
+    # রিয়েল টাইমে সচল ভিশন মডেলের তালিকা বের করা হচ্ছে
+    models_to_try = get_available_vision_models()
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
@@ -190,7 +207,7 @@ def vision_response_generator(image_base64, user_prompt):
                                     yield content
                             except:
                                 pass
-                break
+                break # সফলভাবে স্ট্রিম সম্পন্ন হলে লুপ শেষ
             else:
                 last_error = f"Model {model} failed with status {response.status_code}: {response.text}"
         except Exception as e:
@@ -304,8 +321,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # --- মেইন অ্যাপ্লিকেশন ইন্টারফেস ---
-# 🏷️ ওপরে লাল নোটিশ ট্যাগ ( Deployment Sync সফলভাবে হয়েছে কিনা দেখার জন্য )
-st.error("🔴 APP VERSION: v3.1 - Ultimate Vision Fix (যদি এই লাল লেখাটি ড্যাশবোর্ডে দেখতে পান, তবে নতুন কোডটি লোড হয়েছে)")
+st.error("🔴 APP VERSION: v3.2 - Auto-Discovery Engine (ডাইনামিক ভিশন মডেল সার্চ সচল)")
 st.title(f"🐅 Royal Bengal AI Machine - Welcome {st.session_state.user_profile['name']}!")
 
 # সাইডবার
@@ -552,7 +568,7 @@ with tab1:
 
         with st.chat_message("assistant"):
             if image_base64:
-                # 🚀 ইমেজ সলভিং-এর জন্য নিখুঁত রিয়েল-টাইম স্ট্রিমিং হ্যান্ডলার
+                # 🚀 ইমেজ সলভিং-এর জন্য নিখুঁত রিয়েল-টাইম ডাইনামিক স্ট্রিমিং হ্যান্ডলার
                 full_response = st.write_stream(vision_response_generator(image_base64, user_input))
             else:
                 def response_generator():
