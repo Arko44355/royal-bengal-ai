@@ -230,7 +230,7 @@ with st.sidebar:
     
     # 🔑 কাস্টম এপিআই কী ইনপুট বক্স
     st.subheader("🔑 API Key Controller")
-    user_key = st.text_input("Groq API Key (ঐচ্ছিক)", type="password", help="গিটহাব যদি আপনার কী ব্লক করে দেয়, তবে সরাসরি এখানে নতুন কী পেস্ট করে দিন।")
+    user_key = st.text_input("Groq API Key (ঐচ্ছিক)", type="password", help="গিটহাব যদি আপনার কী বিভাগীয়ভাবে ব্লক করে দেয়, তবে সরাসরি এখানে নতুন কী পেস্ট করে দিন।")
     
     if user_key.strip():
         GROQ_API_KEY = user_key.strip()
@@ -560,7 +560,7 @@ with tab1:
             save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.messages, "tab1")
             st.rerun()
 
-# 📊 ২. Math Wave Solver ট্যাব (typo fixed)
+# 📊 ২. Math Wave Solver ট্যাব
 with tab2:
     st.subheader("📊 Math Wave Solver")
     for message in st.session_state.math_messages:
@@ -577,7 +577,7 @@ with tab2:
             if not client:
                 st.error("⚠️ Groq Client সচল নেই।")
             else:
-                # with st.spinner টাইপোটি এখানে স্থায়ীভাবে ঠিক করা হলো
+                # টাইপোটি সম্পূর্ণ দূর করে বিশুদ্ধ with st.spinner ব্লক বসানো হলো
                 with st.spinner("🌐 গাণিতিক তথ্য অনুসন্ধান ও সমাধান করা হচ্ছে..."):
                     try:
                         search_info = ""
@@ -688,4 +688,4 @@ with tab3:
 # 🎨 ৪. AI Image Generator ট্যাব
 with tab4:
     st.subheader("🎨 AI Image Generator")
-    st.write("দুঃখিত ! টেক্সট-টু-ইমেজ জেনারেশন মডেলটি এখনো ক্লাউডে কনফিগার করা হচ্ছে।")
+    st.write("দুঃখিত! টেক্সট-টু-ইমেজ জেনারেশন মডেলটি এখনো ক্লাউডে কনফিগার করা হচ্ছে।")
