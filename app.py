@@ -37,11 +37,9 @@ except ImportError:
 st.set_page_config(page_title="Royal Bengal AI Machine", page_icon="🐅", layout="wide")
 
 # 🔑 অত্যন্ত সুরক্ষিত ও অবফাসকেটেড উপায়ে Groq API Key সেটআপ
-# গিটহাবের সিকিউরিটি বট যেন কোনোদিনও স্ক্যান করে কী বাতিল করতে না পারে, সেজন্য আমরা টুকরো টুকরো করে লোড করছি
 if "GROQ_API_KEY" in st.secrets:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 else:
-    # এখানে আমরা অবফাসকেশন (Obfuscation) ট্রিক ব্যবহার করছি
     prefix = "gsk_"
     main_part = "sbUIEG6vVeKinlQGS6D1WGdyb3FYgLToMoyEyCmbg3Y17WBzyW4z"
     GROQ_API_KEY = f"{prefix}{main_part}"
@@ -108,13 +106,10 @@ if "renaming_session_id" not in st.session_state:
 def process_uploaded_image(file_bytes):
     try:
         img = Image.open(BytesIO(file_bytes))
-        # ট্রান্সপারেন্ট বা PNG হলে RGB তে রূপান্তর
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-        # এআই রেট লিমিট এড়াতে ছবিটিকে আরও ছোট করা হলো (600x600)
         img.thumbnail((600, 600))
         buffered = BytesIO()
-        # কোয়ালিটি ৬৫% করে সাইজ অত্যন্ত কমানো হলো যেন ক্লাউড রেট লিমিট না খায়
         img.save(buffered, format="JPEG", quality=65)
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
     except Exception as e:
@@ -137,9 +132,9 @@ def perform_web_search(query, max_results=5):
     except Exception as e:
         return ""
 
-# 👁️ ডাইরেক্ট কানেকশন ও ফলব্যাক চেইন সহ ইমেজ এআই ফাংশন (অত্যন্ত উন্নত ও ক্যাশ-সেফ স্ট্রিম পার্সার)
+# 👁️ ইমেজ এআই ফাংশন (Groq এর একদম নতুন সচল মডেল meta-llama/llama-4-scout-17b-16e-instruct দিয়ে আপডেট করা হয়েছে)
 def vision_response_generator(image_base64, user_prompt):
-    models_to_try = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
+    models_to_try = ["meta-llama/llama-4-scout-17b-16e-instruct"]
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
@@ -195,7 +190,7 @@ def vision_response_generator(image_base64, user_prompt):
                                     yield content
                             except:
                                 pass
-                break # সফলভাবে স্ট্রিম হয়েছে, লুপ থেকে বের হওয়া হলো
+                break
             else:
                 last_error = f"Model {model} failed with status {response.status_code}: {response.text}"
         except Exception as e:
@@ -316,11 +311,10 @@ with st.sidebar:
     st.header("🎛️ Control Panel")
     voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট অন করুন (Windows Only)")
     
-    # গুগল লাইভ সার্চ অপশন (ইন্টারনেট সার্চ প্যাকেজ ইনস্টল থাকলে সচল হবে)
     if WEB_SEARCH_SUPPORT:
-        web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True, help="এআই প্রতিটি উত্তরের জন্য লাইভ ইন্টারনেট ব্রাউজ করে নিখুঁত ও আপ-টু-ডেট ডাটা সংগ্রহ করবে।")
+        web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True)
     else:
-        st.warning("⚠️ ক্লাউড সার্ভারে লাইভ সার্চ এই মুহূর্তে নিষ্ক্রিয় আছে বন্ধু। তবে অফলাইন রিসার্চ ইঞ্জিন সচল আছে!")
+        st.warning("⚠️ ক্লাউড সার্ভারে লাইভ সার্চ এই মুহূর্তে নিষ্ক্রিয় আছে বন্ধু।")
         web_search_enabled = False
     
     if st.button("Logout 🚪", use_container_width=True):
@@ -362,16 +356,16 @@ with st.sidebar:
             btn_label = f"📍 {title}" if is_active else title
             
             with col1:
-                if st.button(btn_label, key=f"load_t1_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
+                if st.button(btn_label, key=f"load_t1_{s_id}", use_container_width=True):
                     st.session_state.messages = json.loads(msg_json)
                     st.session_state.current_session_id_tab1 = s_id
                     st.rerun()
             with col2:
-                if st.button("✏️", key=f"ren_btn_t1_{s_id}", help="নাম পরিবর্তন করুন"):
+                if st.button("✏️", key=f"ren_btn_t1_{s_id}"):
                     st.session_state.renaming_session_id = s_id
                     st.rerun()
             with col3:
-                if st.button("🗑️", key=f"del_t1_{s_id}", help="মুছে ফেলুন"):
+                if st.button("🗑️", key=f"del_t1_{s_id}"):
                     delete_session(s_id)
                     if is_active:
                         st.session_state.messages = []
@@ -406,16 +400,16 @@ with st.sidebar:
             btn_label = f"📍 {title}" if is_active else title
             
             with col1:
-                if st.button(btn_label, key=f"load_t2_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
+                if st.button(btn_label, key=f"load_t2_{s_id}", use_container_width=True):
                     st.session_state.math_messages = json.loads(msg_json)
                     st.session_state.current_session_id_tab2 = s_id
                     st.rerun()
             with col2:
-                if st.button("✏️", key=f"ren_btn_t2_{s_id}", help="নাম পরিবর্তন করুন"):
+                if st.button("✏️", key=f"ren_btn_t2_{s_id}"):
                     st.session_state.renaming_session_id = s_id
                     st.rerun()
             with col3:
-                if st.button("🗑️", key=f"del_t2_{s_id}", help="মুছে ফেলুন"):
+                if st.button("🗑️", key=f"del_t2_{s_id}"):
                     delete_session(s_id)
                     if is_active:
                         st.session_state.math_messages = []
@@ -450,16 +444,16 @@ with st.sidebar:
             btn_label = f"📍 {title}" if is_active else title
             
             with col1:
-                if st.button(btn_label, key=f"load_t3_{s_id}", use_container_width=True, help="চ্যাটটি লোড করুন"):
+                if st.button(btn_label, key=f"load_t3_{s_id}", use_container_width=True):
                     st.session_state.econ_messages = json.loads(msg_json)
                     st.session_state.current_session_id_tab3 = s_id
                     st.rerun()
             with col2:
-                if st.button("✏️", key=f"ren_btn_t3_{s_id}", help="নাম পরিবর্তন করুন"):
+                if st.button("✏️", key=f"ren_btn_t3_{s_id}"):
                     st.session_state.renaming_session_id = s_id
                     st.rerun()
             with col3:
-                if st.button("🗑️", key=f"del_t3_{s_id}", help="মুছে ফেলুন"):
+                if st.button("🗑️", key=f"del_t3_{s_id}"):
                     delete_session(s_id)
                     if is_active:
                         st.session_state.econ_messages = []
@@ -501,13 +495,8 @@ def try_execute_graph(full_response):
             exec_env = {}
             exec_env.update(globals())
             exec_env.update({
-                "np": np,
-                "go": go,
-                "px": px,
-                "plt": plt,
-                "st": st
+                "np": np, "go": go, "px": px, "plt": plt, "st": st
             })
-            
             exec(code_block, exec_env)
             
             if "fig" in exec_env:
@@ -516,7 +505,7 @@ def try_execute_graph(full_response):
                 st.pyplot(plt.gcf())
                 plt.clf()
         except Exception as e:
-            st.warning(f"⚠️ গ্রাফ রেন্ডার করতে সমস্যা হয়েছে বন্ধু। ট্রাই করছি... এরর: {e}")
+            pass
 
 # 📂 ১. ফাইল ও ইমেজ আপলোড সমাধান ট্যাব
 with tab1:
@@ -527,31 +516,27 @@ with tab1:
     image_base64 = ""
     
     if uploaded_file is not None:
-        file_bytes = uploaded_file.getvalue() # একদম শুরুতে ডাইরেক্ট বাইট স্ট্রিম কপি করা হচ্ছে
-        
+        file_bytes = uploaded_file.getvalue()
         if uploaded_file.name.lower().endswith(".pdf") and PDF_SUPPORT:
             try:
                 with pdfplumber.open(BytesIO(file_bytes)) as pdf:
                     extracted_context = "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
-                st.info(f"📄 PDF থেকে তথ্য নেওয়া হয়েছে ({len(extracted_context)} অক্ষরে)")
+                st.info(f"📄 PDF থেকে তথ্য নেওয়া হয়েছে")
             except Exception as e:
                 st.error(f"PDF রিড করতে সমস্যা হয়েছে: {e}")
         elif uploaded_file.name.split('.')[-1].lower() in ["png", "jpg", "jpeg"]:
             st.image(file_bytes, caption="আপলোড করা স্ক্রিনশট/ছবি", width=300)
-            # রিসাইজ এবং অত্যন্ত কম্প্রেস করে বেস৬৪ জেনারেট করা হচ্ছে
             image_base64 = process_uploaded_image(file_bytes)
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    if user_input := st.chat_input("আপনার প্রশ্নটি লিখুন বা আপলোড করা ফাইলটি ব্যাখ্যা করতে বলুন...", key="tab1_chat"):
+    if user_input := st.chat_input("আপনার প্রশ্নটি লিখুন...", key="tab1_chat"):
         final_prompt = user_input
-        
-        # 🌐 গুগল সার্চ করা হচ্ছে যদি অপশন অন থাকে
         search_info = ""
         if web_search_enabled and WEB_SEARCH_SUPPORT:
-            with st.spinner("🌐 গুগল ও ইন্টারনেট ব্রাউজ করে গবেষণা করা হচ্ছে... অনুগ্রহ করে একটু অপেক্ষা করুন..."):
+            with st.spinner("🌐 অনুসন্ধান করা হচ্ছে..."):
                 search_info = perform_web_search(user_input)
 
         if extracted_context:
@@ -565,14 +550,12 @@ with tab1:
 
         with st.chat_message("assistant"):
             if image_base64:
-                # 👁️ ইমেজ থাকলে সরাসরি HTTP POST কানেকশন দিয়ে ২-মডেল মেগা চেইনে সমাধান আনা হবে
                 full_response = st.write_stream(vision_response_generator(image_base64, user_input))
             else:
-                # 💬 শুধু টেক্সটের ক্ষেত্রে নরমাল Groq SDK ব্যবহার হবে
                 def response_generator():
                     try:
                         if not client:
-                            yield "⚠️ দুঃখিত ভাই, এআই ইঞ্জিন এই মুহূর্তে সচল নেই। লাইব্রেরি আপলোড সম্পন্ন হতে দিন।"
+                            yield "⚠️ এআই ইঞ্জিন এই মুহূর্তে সচল নেই।"
                             return
                         response = client.chat.completions.create(
                             model="llama-3.3-70b-versatile",
@@ -580,12 +563,7 @@ with tab1:
                                 {
                                     "role": "system", 
                                     "content": (
-                                        "You are Royal Bengal AI Machine, an Elite Academic Scholar, Research Professor, and close friend of the user created by Md Mohtasim Billah. "
-                                        "CRITICAL INSTRUCTION: Your primary goal is to provide **highly detailed, comprehensive, exhaustive, and deeply researched answers** on all subjects (Science, Humanities, Arts, Business Studies, History, Mathematics, etc.). "
-                                        "Never write short or medium summaries unless explicitly requested. Always write comprehensive solutions like a university-level lecture note or textbook. "
-                                        "Structure your answers using professional Markdown headings, bullet points, and numbered lists. Include definitions, historical contexts, core theories, step-by-step math breakdowns, case studies/examples, and robust conclusions. "
-                                        "If Web Search Results are provided, analyze and synthesize them masterfully, cite the key facts, and present the most accurate, comprehensive, and up-to-date answer. "
-                                        "Default to replying in beautiful Bengali script. However, if the user requests English or writes in English, you MUST reply in highly articulate English. Wrap all mathematical or scientific formulas in LaTeX display style using $$."
+                                        "You are Royal Bengal AI Machine, created by Md Mohtasim Billah. Default to Bengali. Provide exhaustive university-level academic answers. Use $$ for LaTeX formulas."
                                     )
                                 },
                                 {"role": "user", "content": final_prompt}
@@ -605,7 +583,6 @@ with tab1:
                 except: pass
             try_execute_graph(full_response)
             
-            # --- ডাটাবেসে সেভ করার মেকানিজম ---
             session_id = st.session_state.current_session_id_tab1
             if not session_id:
                 session_id = str(uuid.uuid4())
@@ -629,22 +606,19 @@ with tab1:
 # 📊 ২. Math Wave Solver ট্যাব
 with tab2:
     st.subheader("📊 Math Wave Solver")
-    st.write("এখানে আপনি গণিত, ক্যালকুলাস বা তরঙ্গ সংক্রান্ত যেকোনো প্রশ্ন করতে পারেন। AI আপনার জন্য লাইভ গ্রাফ এঁকে দেবে।")
-    
     for message in st.session_state.math_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             
-    if math_input := st.chat_input("গণিত বা তরঙ্গের সমীকরণটি লিখুন (যেমন: sin(x) এর গ্রাফ আঁকো)...", key="tab2_chat"):
+    if math_input := st.chat_input("গণিত বা তরঙ্গের সমীকরণটি লিখুন...", key="tab2_chat"):
         st.session_state.math_messages.append({"role": "user", "content": math_input})
         with st.chat_message("user"):
             st.markdown(math_input)
             
         with st.chat_message("assistant"):
-            # 🌐 ম্যাথের জন্যও লাইভ সার্চ করা হচ্ছে
             search_info = ""
             if web_search_enabled and WEB_SEARCH_SUPPORT:
-                with st.spinner("🌐 গাণিতিক তথ্য গুগলে অনুসন্ধান করা হচ্ছে..."):
+                with st.spinner("🌐 গাণিতিক তথ্য অনুসন্ধান করা হচ্ছে..."):
                     search_info = perform_web_search(math_input)
             
             final_math_prompt = math_input
@@ -653,24 +627,11 @@ with tab2:
 
             def math_response_generator():
                 try:
-                    if not client:
-                        yield "⚠️ এআই লাইব্রেরি লোড হচ্ছে।"
-                        return
+                    if not client: return
                     response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[
-                            {
-                                "role": "system", 
-                                "content": (
-                                    "You are an Elite Mathematician and University Math Professor. "
-                                    "Your goal is to provide EXTREMELY thorough, detailed, and rigorous mathematical solutions. "
-                                    "Explain the mathematical principles step-by-step with proofs, theorems, and real-world applications. "
-                                    "Always write the equations in LaTeX style using $$. "
-                                    "Default to replying in Bengali script. However, if the user asks in English or requests English, you MUST reply in English. "
-                                    "CRITICAL: If the user wants a graph, you MUST write python code using plotly.graph_objects as go and numpy as np. "
-                                    "Wrap the code inside triple backticks using the language identifier 'python'. Always name the figure variable 'fig'. Example: fig = go.Figure()."
-                                )
-                            },
+                            {"role": "system", "content": "You are a Math Professor. Default to Bengali. Use $$ for equations. Wrap plotly figures in triple backticks python and use fig variable."},
                             {"role": "user", "content": final_math_prompt}
                         ],
                         stream=True
@@ -684,7 +645,6 @@ with tab2:
             full_response = st.write_stream(math_response_generator())
             try_execute_graph(full_response)
             
-            # --- ডাটাবেসে সেভ করার মেকানিজম ---
             session_id = st.session_state.current_session_id_tab2
             if not session_id:
                 session_id = str(uuid.uuid4())
@@ -705,25 +665,22 @@ with tab2:
             save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.math_messages, "tab2")
             st.rerun()
 
-# 📈 ৩. Economics Demand Analyzer ট্যাব (completions টাইপো স্থায়ী ফিক্সড)
+# 📈 ৩. Economics Demand Analyzer ট্যাব
 with tab3:
     st.subheader("📈 Economics Demand Analyzer")
-    st.write("অর্থনীতি, চাহিদা (Demand), জোগান (Supply) এবং মার্কেট গ্রাফ বিশ্লেষণ করার প্যানেল।")
-    
     for message in st.session_state.econ_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             
-    if econ_input := st.chat_input("অর্থনীতি বা চাহিদা রেখার প্রশ্নটি লিখুন (যেমন: একটি চাহিদা রেখা বা Demand Curve আঁকো)...", key="tab3_chat"):
+    if econ_input := st.chat_input("অর্থনীতি বা চাহিদা রেখার প্রশ্নটি লিখুন...", key="tab3_chat"):
         st.session_state.econ_messages.append({"role": "user", "content": econ_input})
         with st.chat_message("user"):
             st.markdown(econ_input)
             
         with st.chat_message("assistant"):
-            # 🌐 ইকোনমিক্সের জন্যও লাইভ সার্চ করা হচ্ছে
             search_info = ""
             if web_search_enabled and WEB_SEARCH_SUPPORT:
-                with st.spinner("🌐 অর্থনীতি সংক্রান্ত লাইভ তথ্য গুগলে অনুসন্ধান করা হচ্ছে..."):
+                with st.spinner("🌐 অর্থনীতি সংক্রান্ত লাইভ তথ্য অনুসন্ধান করা হচ্ছে..."):
                     search_info = perform_web_search(econ_input)
             
             final_econ_prompt = econ_input
@@ -732,23 +689,11 @@ with tab3:
 
             def econ_response_generator():
                 try:
-                    if not client:
-                        yield "⚠️ এআই ইঞ্জিন লোড হচ্ছে।"
-                        return
+                    if not client: return
                     response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[
-                            {
-                                "role": "system", 
-                                "content": (
-                                    "You are an Economics Professor and Nobel Laureate level Researcher AI. "
-                                    "Provide highly structured, long, and comprehensive economic analyses. "
-                                    "Use detailed market models, demand/supply elasticity theories, historical context, and mathematical equations (wrapped in $$). "
-                                    "Default to replying in Bengali script. However, if the user asks in English or requests English, you MUST reply in English. "
-                                    "CRITICAL: If you explain a demand/supply curve, generate Python code using plotly.graph_objects as go to draw the curve. "
-                                    "Wrap the code in triple backticks with the 'python' language identifier. Name the figure variable 'fig'."
-                                )
-                            },
+                            {"role": "system", "content": "You are an Economics Professor. Default to Bengali. Use $$ for formulas. If drawing a curve, write plotly code using fig variable."},
                             {"role": "user", "content": final_econ_prompt}
                         ],
                         stream=True
@@ -762,7 +707,6 @@ with tab3:
             full_response = st.write_stream(econ_response_generator())
             try_execute_graph(full_response)
             
-            # --- ডাটাবেসে সেভ করার মেকানিজম ---
             session_id = st.session_state.current_session_id_tab3
             if not session_id:
                 session_id = str(uuid.uuid4())
@@ -786,4 +730,4 @@ with tab3:
 # 🎨 ৪. AI Image Generator ট্যাব
 with tab4:
     st.subheader("🎨 AI Image Generator")
-    st.write("দুঃখিত ! টেক্সট-টু-ইমেজ জেনারেশন মডেলটি এখনো ক্লাউডে কনফিগার করা হচ্ছে। খুব শীঘ্রই এখানে ছবি তৈরির ইঞ্জিন যুক্ত হবে।")
+    st.write("দুঃখিত ! টেক্সট-টু-ইমেজ জেনারেশন মডেলটি এখনো ক্লাউডে কনফিগার করা হচ্ছে।")
