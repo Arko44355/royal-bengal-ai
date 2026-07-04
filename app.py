@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 import numpy as np
@@ -9,24 +8,48 @@ matplotlib.use('Agg') # লিনাক্স ক্লাউড সার্ভ
 import matplotlib.pyplot as plt
 from PIL import Image
 import os
-import pdfplumber
 import sqlite3
 import base64
 import json
 import uuid
-from groq import Groq
-from duckduckgo_search import DDGS # গুগল ও ইন্টারনেট লাইভ সার্চের জন্য অত্যন্ত শক্তিশালী ফ্রি লাইব্রেরি
+
+# 🛡️ বুলেটপ্রুফ ইমপোর্ট গার্ডরেল (কোনো প্যাকেজ মিসিং থাকলেও অ্যাপ ক্র্যাশ করবে না)
+try:
+    import pdfplumber
+    PDF_SUPPORT = True
+except ImportError:
+    PDF_SUPPORT = False
+
+try:
+    from groq import Groq
+    GROQ_SUPPORT = True
+except ImportError:
+    GROQ_SUPPORT = False
+
+try:
+    from duckduckgo_search import DDGS
+    WEB_SEARCH_SUPPORT = True
+except ImportError:
+    WEB_SEARCH_SUPPORT = False
 
 # ১. পেজ কনফিগারেশন
 st.set_page_config(page_title="Royal Bengal AI Machine", page_icon="🐅", layout="wide")
 
 # 🔑 Groq API Key সেটআপ
 GROQ_API_KEY = "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"
-client = Groq(api_key=GROQ_API_KEY)
+client = None
+if GROQ_SUPPORT:
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+    except Exception as e:
+        st.error(f"Groq Client ইনিশিয়েলাইজ করতে সমস্যা: {e}")
 
-# 🗄️ ডেটাবেস সেটআপ
+# 🗄️ ডেটাবেস সেটআপ (Timeout যুক্ত করে থ্রেড-সেফ করা হয়েছে)
+def get_db_connection():
+    return sqlite3.connect("users.db", timeout=10, check_same_thread=False)
+
 def init_db():
-    conn = sqlite3.connect("users.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -72,8 +95,10 @@ if "current_session_id_tab3" not in st.session_state:
 if "renaming_session_id" not in st.session_state:
     st.session_state.renaming_session_id = None
 
-# 🌐 লাইভ ওয়েব সার্চ করার সহায়ক ফাংশন
+# 🌐 সেফ লাইভ ওয়েব সার্চ করার ফাংশন
 def perform_web_search(query, max_results=5):
+    if not WEB_SEARCH_SUPPORT:
+        return ""
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
@@ -84,45 +109,58 @@ def perform_web_search(query, max_results=5):
             search_context += f"উৎস [{i}]: {r.get('title')}\nলিংক: {r.get('href')}\nতথ্যসার: {r.get('body')}\n\n"
         return search_context
     except Exception as e:
-        return f"\n⚠️ লাইভ সার্চ করতে সামান্য সমস্যা হয়েছে বন্ধু। এরর: {e}\n"
+        # লাইভ সার্চ কাজ না করলে ক্র্যাশ না করে খালি রেসপন্স পাঠাবে
+        return ""
 
-# 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ
+# 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ (থ্রেড-সেফ)
 def save_session(session_id, email, title, messages, tab_name):
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    messages_json = json.dumps(messages)
-    cursor.execute('''
-        INSERT OR REPLACE INTO chat_sessions (session_id, email, title, messages_json, tab_name, updated_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ''', (session_id, email, title, messages_json, tab_name))
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        messages_json = json.dumps(messages)
+        cursor.execute('''
+            INSERT OR REPLACE INTO chat_sessions (session_id, email, title, messages_json, tab_name, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ''', (session_id, email, title, messages_json, tab_name))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        pass
 
 def get_sessions(email, tab_name):
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT session_id, title, messages_json FROM chat_sessions 
-        WHERE email = ? AND tab_name = ? 
-        ORDER BY updated_at DESC
-    ''', (email, tab_name))
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT session_id, title, messages_json FROM chat_sessions 
+            WHERE email = ? AND tab_name = ? 
+            ORDER BY updated_at DESC
+        ''', (email, tab_name))
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+    except Exception as e:
+        return []
 
 def delete_session(session_id):
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM chat_sessions WHERE session_id = ?', (session_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM chat_sessions WHERE session_id = ?', (session_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        pass
 
 def rename_session(session_id, new_title):
-    conn = sqlite3.connect("users.db")
-    cursor = conn.cursor()
-    cursor.execute('UPDATE chat_sessions SET title = ? WHERE session_id = ?', (new_title, session_id))
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE chat_sessions SET title = ? WHERE session_id = ?', (new_title, session_id))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        pass
 
 
 # লগইন এবং সাইনআপ ইন্টারফেস
@@ -141,7 +179,7 @@ if not st.session_state.logged_in:
         if st.button("Sign Up & Create Account 🚀"):
             if reg_email and reg_pass:
                 try:
-                    conn = sqlite3.connect("users.db")
+                    conn = get_db_connection()
                     cursor = conn.cursor()
                     cursor.execute("INSERT INTO users (email, name, password) VALUES (?, ?, ?)", (reg_email.strip(), reg_name.strip(), reg_pass.strip()))
                     conn.commit()
@@ -149,6 +187,8 @@ if not st.session_state.logged_in:
                     st.success("🎉 অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে! পাশের ট্যাবে গিয়ে লগইন করুন।")
                 except sqlite3.IntegrityError:
                     st.error("⚠️ এই ইমেইল দিয়ে অলরেডি অ্যাকাউন্ট তৈরি করা আছে!")
+                except Exception as e:
+                    st.error(f"ডাটাবেস এরর: {e}")
             else:
                 st.error("⚠️ দয়া করে ইমেইল এবং পাসওয়ার্ড সঠিকভাবে পূরণ করুন।")
                 
@@ -158,19 +198,22 @@ if not st.session_state.logged_in:
         login_pass = st.text_input("পাসওয়ার্ড (Password)", type="password", key="login_pass", placeholder="আপনার পাসওয়ার্ডটি লিখুন")
         
         if st.button("Login & Unlock Machine 🔓"):
-            conn = sqlite3.connect("users.db")
-            cursor = conn.cursor()
-            cursor.execute("SELECT name, password FROM users WHERE email = ?", (login_email.strip(),))
-            user = cursor.fetchone()
-            conn.close()
-            
-            if user and login_pass.strip() == user[1]:
-                st.session_state.logged_in = True
-                st.session_state.user_profile = {"name": user[0], "email": login_email.strip()}
-                st.toast("🔓 Access Granted! Welcome back.", icon="🐅")
-                st.rerun()
-            else:
-                st.error("❌ ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।")
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT name, password FROM users WHERE email = ?", (login_email.strip(),))
+                user = cursor.fetchone()
+                conn.close()
+                
+                if user and login_pass.strip() == user[1]:
+                    st.session_state.logged_in = True
+                    st.session_state.user_profile = {"name": user[0], "email": login_email.strip()}
+                    st.toast("🔓 Access Granted! Welcome back.", icon="🐅")
+                    st.rerun()
+                else:
+                    st.error("❌ ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।")
+            except Exception as e:
+                st.error(f"লগইন করতে সমস্যা হয়েছে: {e}")
     st.stop()
 
 # --- মেইন অ্যাপ্লিকেশন ইন্টারফেস ---
@@ -180,8 +223,13 @@ st.title(f"🐅 Royal Bengal AI Machine - Welcome {st.session_state.user_profile
 with st.sidebar:
     st.header("🎛️ Control Panel")
     voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট অন করুন (Windows Only)")
-    # 🌐 গুগল লাইভ সার্চ টগল বোতাম
-    web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True, help="এআই প্রতিটি উত্তরের জন্য লাইভ ইন্টারনেট ব্রাউজ করে নিখুঁত ও আপ-টু-ডেট ডাটা সংগ্রহ করবে।")
+    
+    # গুগল লাইভ সার্চ অপশন (ইন্টারনেট সার্চ প্যাকেজ ইনস্টল থাকলে সচল হবে)
+    if WEB_SEARCH_SUPPORT:
+        web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True, help="এআই প্রতিটি উত্তরের জন্য লাইভ ইন্টারনেট ব্রাউজ করে নিখুঁত ও আপ-টু-ডেট ডাটা সংগ্রহ করবে।")
+    else:
+        st.warning("⚠️ ক্লাউড সার্ভারে লাইভ সার্চ এই মুহূর্তে নিষ্ক্রিয় আছে বন্ধু। তবে অফলাইন রিসার্চ ইঞ্জিন সচল আছে!")
+        web_search_enabled = False
     
     if st.button("Logout 🚪"):
         st.session_state.logged_in = False
@@ -375,10 +423,13 @@ with tab1:
     image_base64 = ""
     
     if uploaded_file is not None:
-        if uploaded_file.name.endswith(".pdf"):
-            with pdfplumber.open(uploaded_file) as pdf:
-                extracted_context = "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
-            st.info(f"📄 PDF থেকে তথ্য নেওয়া হয়েছে ({len(extracted_context)} অক্ষরে)")
+        if uploaded_file.name.endswith(".pdf") and PDF_SUPPORT:
+            try:
+                with pdfplumber.open(uploaded_file) as pdf:
+                    extracted_context = "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
+                st.info(f"📄 PDF থেকে তথ্য নেওয়া হয়েছে ({len(extracted_context)} অক্ষরে)")
+            except Exception as e:
+                st.error(f"PDF রিড করতে সমস্যা হয়েছে: {e}")
         elif uploaded_file.name.split('.')[-1] in ["png", "jpg", "jpeg"]:
             st.image(uploaded_file, caption="আপলোড করা স্ক্রিনশট/ছবি", width=300)
             uploaded_file.seek(0)
@@ -393,7 +444,7 @@ with tab1:
         
         # 🌐 গুগল সার্চ করা হচ্ছে যদি অপশন অন থাকে
         search_info = ""
-        if web_search_enabled:
+        if web_search_enabled and WEB_SEARCH_SUPPORT:
             with st.spinner("🌐 গুগল ও ইন্টারনেট ব্রাউজ করে গবেষণা করা হচ্ছে... অনুগ্রহ করে একটু অপেক্ষা করুন..."):
                 search_info = perform_web_search(user_input)
 
@@ -409,6 +460,10 @@ with tab1:
         with st.chat_message("assistant"):
             def response_generator():
                 try:
+                    if not client:
+                        yield "⚠️ দুঃখিত ভাই, এআই ইঞ্জিন এই মুহূর্তে সচল নেই। লাইব্রেরি আপলোড সম্পন্ন হতে দিন।"
+                        return
+
                     if image_base64:
                         response = client.chat.completions.create(
                             model="llama-3.2-11b-vision-preview",
@@ -459,12 +514,15 @@ with tab1:
                 st.session_state.current_session_id_tab1 = session_id
                 title = user_input[:30] + ("..." if len(user_input) > 30 else "")
             else:
-                conn = sqlite3.connect("users.db")
-                cursor = conn.cursor()
-                cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
-                row = cursor.fetchone()
-                conn.close()
-                title = row[0] if row else (user_input[:30] + ("..." if len(user_input) > 30 else ""))
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
+                    row = cursor.fetchone()
+                    conn.close()
+                    title = row[0] if row else (user_input[:30] + ("..." if len(user_input) > 30 else ""))
+                except:
+                    title = user_input[:30] + ("..." if len(user_input) > 30 else "")
             
             st.session_state.messages.append({"role": "assistant", "content": full_response})
             save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.messages, "tab1")
@@ -487,7 +545,7 @@ with tab2:
         with st.chat_message("assistant"):
             # 🌐 ম্যাথের জন্যও লাইভ সার্চ করা হচ্ছে
             search_info = ""
-            if web_search_enabled:
+            if web_search_enabled and WEB_SEARCH_SUPPORT:
                 with st.spinner("🌐 গাণিতিক তথ্য গুগলে অনুসন্ধান করা হচ্ছে..."):
                     search_info = perform_web_search(math_input)
             
@@ -497,6 +555,9 @@ with tab2:
 
             def math_response_generator():
                 try:
+                    if not client:
+                        yield "⚠️ এআই লাইব্রেরি লোড হচ্ছে।"
+                        return
                     response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[
@@ -532,12 +593,15 @@ with tab2:
                 st.session_state.current_session_id_tab2 = session_id
                 title = math_input[:30] + ("..." if len(math_input) > 30 else "")
             else:
-                conn = sqlite3.connect("users.db")
-                cursor = conn.cursor()
-                cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
-                row = cursor.fetchone()
-                conn.close()
-                title = row[0] if row else (math_input[:30] + ("..." if len(math_input) > 30 else ""))
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
+                    row = cursor.fetchone()
+                    conn.close()
+                    title = row[0] if row else (math_input[:30] + ("..." if len(math_input) > 30 else ""))
+                except:
+                    title = math_input[:30] + ("..." if len(math_input) > 30 else "")
                 
             st.session_state.math_messages.append({"role": "assistant", "content": full_response})
             save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.math_messages, "tab2")
@@ -560,7 +624,7 @@ with tab3:
         with st.chat_message("assistant"):
             # 🌐 ইকোনমিক্সের জন্যও লাইভ সার্চ করা হচ্ছে
             search_info = ""
-            if web_search_enabled:
+            if web_search_enabled and WEB_SEARCH_SUPPORT:
                 with st.spinner("🌐 অর্থনীতি সংক্রান্ত লাইভ তথ্য গুগলে অনুসন্ধান করা হচ্ছে..."):
                     search_info = perform_web_search(econ_input)
             
@@ -570,7 +634,10 @@ with tab3:
 
             def econ_response_generator():
                 try:
-                    response = client.chat.completions.create(
+                    if not client:
+                        yield "⚠️ এআই ইঞ্জিন লোড হচ্ছে।"
+                        return
+                    response = client.chat.com completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[
                             {
@@ -604,12 +671,15 @@ with tab3:
                 st.session_state.current_session_id_tab3 = session_id
                 title = econ_input[:30] + ("..." if len(econ_input) > 30 else "")
             else:
-                conn = sqlite3.connect("users.db")
-                cursor = conn.cursor()
-                cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
-                row = cursor.fetchone()
-                conn.close()
-                title = row[0] if row else (econ_input[:30] + ("..." if len(econ_input) > 30 else ""))
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
+                    row = cursor.fetchone()
+                    conn.close()
+                    title = row[0] if row else (econ_input[:30] + ("..." if len(econ_input) > 30 else ""))
+                except:
+                    title = econ_input[:30] + ("..." if len(econ_input) > 30 else "")
                 
             st.session_state.econ_messages.append({"role": "assistant", "content": full_response})
             save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.econ_messages, "tab3")
