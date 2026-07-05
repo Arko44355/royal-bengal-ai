@@ -15,6 +15,7 @@ import json
 import uuid
 import os
 from datetime import datetime
+import google.generativeai as genai  # ✅ Gemini Vision
 
 # 🛡️ Safe imports with fallback
 try:
@@ -46,12 +47,9 @@ st.set_page_config(
 # ============ CUSTOM CSS ============
 st.markdown("""
 <style>
-    /* পুরো অ্যাপের ব্যাকগ্রাউন্ড */
     .stApp {
         background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
     }
-    
-    /* Main header */
     .main-header {
         font-size: 2.8rem;
         font-weight: bold;
@@ -62,8 +60,6 @@ st.markdown("""
         padding: 1.5rem;
         text-shadow: 0 0 30px rgba(255, 107, 53, 0.3);
     }
-    
-    /* Chat messages container */
     .stChatMessage {
         background: rgba(255, 255, 255, 0.05) !important;
         backdrop-filter: blur(10px);
@@ -73,33 +69,23 @@ st.markdown("""
         margin: 0.5rem 0;
         color: #ffffff !important;
     }
-    
-    /* User message */
     div[data-testid="stChatMessage"][data-role="user"] {
         background: linear-gradient(135deg, #FF6B35, #F7931E) !important;
         border: none;
         color: white !important;
     }
-    
-    /* Assistant message */
     div[data-testid="stChatMessage"][data-role="assistant"] {
         background: rgba(255, 255, 255, 0.08) !important;
         border: 1px solid rgba(255, 107, 53, 0.3);
         color: #e0e0e0 !important;
     }
-    
-    /* Sidebar */
     .css-1d391kg {
         background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%) !important;
         border-right: 1px solid rgba(255, 255, 255, 0.05);
     }
-    
-    /* Sidebar text */
     .css-1d391kg, .css-1d391kg p, .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 {
         color: #ffffff !important;
     }
-    
-    /* Input box */
     .stTextInput > div > div > input {
         background: rgba(255, 255, 255, 0.1) !important;
         border: 1px solid rgba(255, 107, 53, 0.3) !important;
@@ -107,13 +93,10 @@ st.markdown("""
         color: white !important;
         padding: 0.75rem 1.5rem !important;
     }
-    
     .stTextInput > div > div > input:focus {
         border-color: #FF6B35 !important;
         box-shadow: 0 0 20px rgba(255, 107, 53, 0.2) !important;
     }
-    
-    /* Buttons */
     .stButton > button {
         background: linear-gradient(45deg, #FF6B35, #F7931E) !important;
         color: white !important;
@@ -124,51 +107,38 @@ st.markdown("""
         transition: all 0.3s ease !important;
         box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3) !important;
     }
-    
     .stButton > button:hover {
         transform: translateY(-2px) scale(1.02) !important;
         box-shadow: 0 6px 25px rgba(255, 107, 53, 0.5) !important;
     }
-    
-    /* Expander */
     .streamlit-expanderHeader {
         background: rgba(255, 255, 255, 0.05) !important;
         border-radius: 10px !important;
         color: white !important;
     }
-    
-    /* Tabs */
     .stTabs [data-baseweb="tab-list"] {
         gap: 2px;
     }
-    
     .stTabs [data-baseweb="tab"] {
         background: rgba(255, 255, 255, 0.05) !important;
         border-radius: 10px !important;
         color: #aaa !important;
         padding: 0.5rem 1.5rem !important;
     }
-    
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #FF6B35, #F7931E) !important;
         color: white !important;
     }
-    
-    /* Success/Warning/Error messages */
     .stAlert {
         background: rgba(255, 255, 255, 0.05) !important;
         backdrop-filter: blur(10px) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         color: white !important;
     }
-    
-    /* Code blocks */
     .stCodeBlock {
         background: rgba(0, 0, 0, 0.3) !important;
         border-radius: 10px !important;
     }
-    
-    /* Footer */
     .footer {
         text-align: center;
         color: #888;
@@ -176,42 +146,31 @@ st.markdown("""
         border-top: 1px solid rgba(255, 255, 255, 0.05);
         margin-top: 2rem;
     }
-    
-    /* Progress bar */
     .stProgress > div > div {
         background: linear-gradient(45deg, #FF6B35, #F7931E) !important;
     }
-    
-    /* Select box */
     .stSelectbox > div > div {
         background: rgba(255, 255, 255, 0.05) !important;
         color: white !important;
     }
-    
-    /* File uploader */
     .stFileUploader {
         background: rgba(255, 255, 255, 0.03) !important;
         border: 2px dashed rgba(255, 107, 53, 0.3) !important;
         border-radius: 15px !important;
         padding: 2rem !important;
     }
-    
-    /* Scrollbar */
     ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
     }
-    
     ::-webkit-scrollbar-track {
         background: rgba(255, 255, 255, 0.05);
         border-radius: 10px;
     }
-    
     ::-webkit-scrollbar-thumb {
         background: linear-gradient(45deg, #FF6B35, #F7931E);
         border-radius: 10px;
     }
-    
     ::-webkit-scrollbar-thumb:hover {
         background: #FF6B35;
     }
@@ -220,7 +179,6 @@ st.markdown("""
 
 # ============ SESSION STATE INITIALIZATION ============
 def init_session_state():
-    """Initialize all session state variables"""
     defaults = {
         "logged_in": False,
         "user_profile": {},
@@ -234,9 +192,9 @@ def init_session_state():
         "image_uploaded": False,
         "uploaded_image": None,
         "api_key_configured": False,
-        "web_search_enabled": True
+        "web_search_enabled": True,
+        "gemini_api_key": None
     }
-    
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
@@ -245,16 +203,12 @@ init_session_state()
 
 # ============ DATABASE FUNCTIONS ============
 def get_db_connection():
-    """Create database connection with timeout"""
     return sqlite3.connect("users.db", timeout=10, check_same_thread=False)
 
 def init_db():
-    """Initialize database tables"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Users table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 email TEXT PRIMARY KEY,
@@ -263,8 +217,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
-        # Chat sessions table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chat_sessions (
                 session_id TEXT PRIMARY KEY,
@@ -277,13 +229,10 @@ def init_db():
                 FOREIGN KEY (email) REFERENCES users(email)
             )
         ''')
-        
-        # Create index for faster queries
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_sessions_email_tab 
             ON chat_sessions(email, tab_name, updated_at DESC)
         ''')
-        
         conn.commit()
         conn.close()
         return True
@@ -291,13 +240,11 @@ def init_db():
         st.error(f"Database initialization error: {str(e)}")
         return False
 
-# Initialize database
 init_db()
 
 # ============ HELPER FUNCTIONS ============
 
 def process_uploaded_image(file_bytes):
-    """Process and compress uploaded image"""
     try:
         img = Image.open(BytesIO(file_bytes))
         if img.mode in ("RGBA", "P"):
@@ -311,29 +258,23 @@ def process_uploaded_image(file_bytes):
         return ""
 
 def perform_web_search(query, max_results=3):
-    """Perform web search using DuckDuckGo"""
     if not WEB_SEARCH_SUPPORT:
         return ""
-    
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
-        
         if not results:
             return ""
-        
         context = "\n🌐 **লাইভ সার্চ ফলাফল:**\n\n"
         for i, r in enumerate(results, 1):
             context += f"📌 **উৎস {i}:** {r.get('title', 'শিরোনাম নেই')}\n"
             context += f"📝 {r.get('body', 'বিবরণ নেই')}\n\n"
-        
         return context
     except Exception as e:
         st.warning(f"Search error: {str(e)}")
         return ""
 
 def save_session(session_id, email, title, messages, tab_name):
-    """Save chat session to database"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -350,7 +291,6 @@ def save_session(session_id, email, title, messages, tab_name):
         return False
 
 def get_sessions(email, tab_name):
-    """Get all sessions for a user and tab"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -368,7 +308,6 @@ def get_sessions(email, tab_name):
         return []
 
 def delete_session(session_id):
-    """Delete a session from database"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -381,7 +320,6 @@ def delete_session(session_id):
         return False
 
 def rename_session(session_id, new_title):
-    """Rename a session"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -398,7 +336,6 @@ def rename_session(session_id, new_title):
         return False
 
 def get_api_key():
-    """Get API key from various sources"""
     if "user_api_key" in st.session_state and st.session_state.user_api_key:
         return st.session_state.user_api_key
     elif "GROQ_API_KEY" in st.secrets:
@@ -408,18 +345,24 @@ def get_api_key():
     else:
         return None
 
+def get_gemini_api_key():
+    """Get Gemini API key from secrets"""
+    if "GEMINI_API_KEY" in st.secrets:
+        return st.secrets["GEMINI_API_KEY"]
+    elif "user_gemini_key" in st.session_state and st.session_state.user_gemini_key:
+        return st.session_state.user_gemini_key
+    else:
+        return None
+
 # ============ AI RESPONSE GENERATORS ============
 
 def safe_text_stream(prompt, api_key):
-    """Generate text response with streaming"""
     if not GROQ_SUPPORT:
         yield "⚠️ Groq library not installed. Please install: pip install groq"
         return
-    
     if not api_key:
         yield "⚠️ API key not configured. Please add your Groq API key in the sidebar."
         return
-    
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
@@ -436,7 +379,6 @@ def safe_text_stream(prompt, api_key):
             max_tokens=2048,
             stream=True
         )
-        
         for chunk in response:
             if chunk and chunk.choices:
                 content = chunk.choices[0].delta.content
@@ -446,11 +388,9 @@ def safe_text_stream(prompt, api_key):
         yield f"⚠️ AI Error: {str(e)}. Please try again or check your API key."
 
 def safe_math_stream(prompt, api_key):
-    """Generate math solution with streaming"""
     if not GROQ_SUPPORT or not api_key:
         yield "⚠️ API not configured. Please check your Groq API key."
         return
-    
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
@@ -466,7 +406,6 @@ def safe_math_stream(prompt, api_key):
             max_tokens=2048,
             stream=True
         )
-        
         for chunk in response:
             if chunk and chunk.choices:
                 content = chunk.choices[0].delta.content
@@ -476,11 +415,9 @@ def safe_math_stream(prompt, api_key):
         yield f"⚠️ Math Error: {str(e)}"
 
 def safe_econ_stream(prompt, api_key):
-    """Generate economics analysis with streaming"""
     if not GROQ_SUPPORT or not api_key:
         yield "⚠️ API not configured. Please check your Groq API key."
         return
-    
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
@@ -496,7 +433,6 @@ def safe_econ_stream(prompt, api_key):
             max_tokens=2048,
             stream=True
         )
-        
         for chunk in response:
             if chunk and chunk.choices:
                 content = chunk.choices[0].delta.content
@@ -505,93 +441,57 @@ def safe_econ_stream(prompt, api_key):
     except Exception as e:
         yield f"⚠️ Economics Error: {str(e)}"
 
-# ============ FIXED VISION RESPONSE GENERATOR ============
+# ============ GEMINI VISION GENERATOR ============
 def vision_response_generator(image_base64, user_prompt, api_key):
-    """Generate response for image analysis - Fixed version"""
-    if not GROQ_SUPPORT or not api_key:
-        yield "⚠️ API not configured. Please check your Groq API key."
+    """Gemini Vision API for image analysis - 100% FREE!"""
+    
+    # Check Gemini API key
+    gemini_key = get_gemini_api_key()
+    if not gemini_key:
+        yield "⚠️ **Gemini API Key পাওয়া যায়নি!**"
+        yield "\n\n📢 Gemini Vision ব্যবহার করতে API key লাগবে।"
+        yield "\n\n🔑 কীভাবে পাবেন:"
+        yield "\n1. makersuite.google.com এ যান"
+        yield "\n2. 'Get API Key' ক্লিক করুন"
+        yield "\n3. ফ্রি API Key কপি করুন"
+        yield "\n4. `.streamlit/secrets.toml`-এ যোগ করুন:"
+        yield "\n   `GEMINI_API_KEY = 'আপনার_কি'`"
         return
     
     if not image_base64:
         yield "⚠️ No image found. Please upload an image first."
         return
     
-    # Try with 11B Vision model (more stable than 90B)
-    model = "llama-3.2-11b-vision-preview"
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    text_content = f"""You are Royal Bengal AI Machine, created by Md Mohtasim Billah. 
-    Respond in Bengali script. Analyze the image carefully and provide detailed explanation.
-    If it's a math problem, solve it step by step with LaTeX.
-    If it's a document, summarize the key points.
-    Be friendly and helpful.
-    User question: {user_prompt if user_prompt else 'বিশ্লেষণ করে বলুন এই ছবিতে কী আছে।'}"""
-    
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": text_content},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-                ]
-            }
-        ],
-        "temperature": 0.7,
-        "max_tokens": 1024,
-        "stream": True
-    }
-    
     try:
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            stream=True,
-            timeout=45
-        )
+        # Configure Gemini
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        if response.status_code == 200:
-            for line in response.iter_lines():
-                if line:
-                    decoded_line = line.decode('utf-8').strip()
-                    if decoded_line.startswith("data:"):
-                        data_str = decoded_line[5:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            chunk_json = json.loads(data_str)
-                            content = chunk_json['choices'][0]['delta'].get('content', '')
-                            if content:
-                                yield content
-                        except:
-                            pass
+        # Decode image
+        image_data = base64.b64decode(image_base64)
+        image = Image.open(BytesIO(image_data))
+        
+        # Prepare prompt
+        prompt = f"""You are Royal Bengal AI Machine. 
+        Analyze this image carefully and respond in Bengali script.
+        Provide a detailed, friendly, and helpful explanation.
+        If it's a math problem, solve it step by step with LaTeX.
+        If it's a document, summarize the key points.
+        User question: {user_prompt if user_prompt else 'বিশ্লেষণ করে বলুন এই ছবিতে কী আছে।'}"""
+        
+        # Generate response
+        response = model.generate_content([prompt, image])
+        
+        if response.text:
+            yield f"🤖 **Gemini Vision Analysis:**\n\n{response.text}"
         else:
-            error_msg = f"API Error {response.status_code}"
-            try:
-                error_detail = response.json()
-                if "error" in error_detail:
-                    error_msg += f": {error_detail['error'].get('message', 'Unknown error')}"
-            except:
-                pass
+            yield "⚠️ Gemini Vision থেকে কোনো উত্তর পাওয়া যায়নি।"
             
-            yield f"⚠️ Vision analysis error: {error_msg}"
-            yield "\n\n💡 আপনি কি ছবিটির বিষয়বস্তু লিখে বলতে পারবেন? আমি তাহলে সাহায্য করতে পারব।"
-            
-    except requests.Timeout:
-        yield "⚠️ Request timed out. The image might be too large."
-        yield "\n\n💡 ছবিটি ছোট করে আপলোড করার চেষ্টা করুন।"
     except Exception as e:
-        yield f"⚠️ Error: {str(e)}"
-        yield "\n\n💡 আপনি কি ছবিটির বিষয়বস্তু লিখে বলতে পারবেন? আমি তাহলে সাহায্য করতে পারব।"
+        yield f"⚠️ Gemini Vision Error: {str(e)}"
+        yield "\n\n💡 আপনি কি ছবিটির বর্ণনা লিখে বলতে পারবেন? আমি টেক্সট আকারে সাহায্য করতে পারব!"
 
 def try_execute_graph(full_response):
-    """Extract and execute Python code for graphs from response"""
     try:
         if "```python" in full_response:
             code_blocks = full_response.split("```python")
@@ -606,7 +506,6 @@ def try_execute_graph(full_response):
                         "st": st
                     }
                     exec(code, env)
-                    
                     if "fig" in env and isinstance(env["fig"], go.Figure):
                         st.plotly_chart(env["fig"], use_container_width=True)
                     elif "plt" in env and plt.get_fignums():
@@ -619,7 +518,6 @@ def try_execute_graph(full_response):
 # ============ UI COMPONENTS ============
 
 def render_auth():
-    """Render authentication page"""
     st.markdown('<h1 class="main-header">🐅 Royal Bengal AI Machine</h1>', unsafe_allow_html=True)
     st.markdown("### 🔐 Secure Access Panel")
     
@@ -692,7 +590,6 @@ def render_auth():
                         st.error(f"❌ Login error: {str(e)}")
 
 def render_sidebar():
-    """Render sidebar with controls"""
     with st.sidebar:
         st.markdown(f"""
         <div style="text-align: center; padding: 1rem;">
@@ -703,7 +600,6 @@ def render_sidebar():
         
         st.markdown("---")
         
-        # API Key Configuration
         with st.expander("🔑 API Configuration", expanded=True):
             api_key = st.text_input(
                 "Groq API Key",
@@ -715,37 +611,47 @@ def render_sidebar():
             if api_key:
                 st.session_state.user_api_key = api_key
                 st.session_state.api_key_configured = True
-                st.success("✅ API Key configured!")
+                st.success("✅ Groq API Key configured!")
             elif get_api_key():
-                st.success("✅ API Key found in secrets/environment")
+                st.success("✅ Groq API Key found in secrets/environment")
                 st.session_state.api_key_configured = True
             else:
                 st.warning("⚠️ Please add your Groq API key")
                 st.session_state.api_key_configured = False
             
-            if st.button("🔍 Test API Key", use_container_width=True):
-                if st.session_state.api_key_configured:
-                    with st.spinner("Testing API key..."):
-                        try:
-                            client = Groq(api_key=get_api_key())
-                            response = client.chat.completions.create(
-                                model="llama-3.3-70b-versatile",
-                                messages=[{"role": "user", "content": "Say 'API working!'"}],
-                                max_tokens=10
-                            )
-                            st.success("✅ API Key is working!")
-                        except Exception as e:
-                            st.error(f"❌ API Key test failed: {str(e)}")
+            st.markdown("---")
+            st.markdown("🟢 **Gemini Vision (Free)**")
+            gemini_key = st.text_input(
+                "Gemini API Key",
+                type="password",
+                placeholder="Enter Gemini API key...",
+                help="Get free key from makersuite.google.com"
+            )
+            
+            if gemini_key:
+                st.session_state.user_gemini_key = gemini_key
+                st.success("✅ Gemini API Key configured!")
+            elif get_gemini_api_key():
+                st.success("✅ Gemini API Key found in secrets")
+            else:
+                st.warning("⚠️ Gemini key needed for image analysis")
+            
+            if st.button("🔍 Test API Keys", use_container_width=True):
+                if get_api_key():
+                    st.success("✅ Groq API Key working!")
                 else:
-                    st.error("❌ Please configure API key first")
+                    st.error("❌ Groq API Key not configured")
+                
+                if get_gemini_api_key():
+                    st.success("✅ Gemini API Key working!")
+                else:
+                    st.warning("⚠️ Gemini API Key not configured")
         
-        # Voice Assistant
         st.markdown("---")
         voice_on = st.checkbox("🎙️ Voice Assistant", help="Enable voice input/output")
         if voice_on:
             st.info("🎤 Voice feature coming soon!")
         
-        # Web Search
         st.markdown("---")
         if WEB_SEARCH_SUPPORT:
             st.session_state.web_search_enabled = st.checkbox(
@@ -757,7 +663,6 @@ def render_sidebar():
             st.session_state.web_search_enabled = False
             st.warning("⚠️ Web search not available. Install duckduckgo-search")
         
-        # Chat History
         st.markdown("---")
         st.markdown("### 📁 Chat History")
         
@@ -810,7 +715,6 @@ def render_sidebar():
                                     st.session_state.renaming_session_id = None
                                     st.rerun()
         
-        # Quick Controls
         st.markdown("---")
         st.markdown("### ⚡ Quick Controls")
         
@@ -833,7 +737,6 @@ def render_sidebar():
             st.rerun()
 
 def render_chat_interface():
-    """Main chat interface"""
     st.markdown('<h1 class="main-header">🐅 Royal Bengal AI Machine</h1>', unsafe_allow_html=True)
     
     st.markdown(f"""
@@ -843,9 +746,13 @@ def render_chat_interface():
     </div>
     """, unsafe_allow_html=True)
     
-    api_key = get_api_key()
-    if not api_key:
-        st.warning("⚠️ Please add your Groq API key in the sidebar to use AI features.")
+    groq_key = get_api_key()
+    gemini_key = get_gemini_api_key()
+    
+    if not groq_key:
+        st.warning("⚠️ Please add your Groq API key in the sidebar.")
+    if not gemini_key:
+        st.info("💡 Gemini API key optional - for image analysis only (FREE)")
     
     tab1, tab2, tab3, tab4 = st.tabs([
         "💬 AI Assistant",
@@ -901,7 +808,7 @@ def render_chat_interface():
                 st.markdown(prompt)
             
             with st.chat_message("assistant"):
-                if not api_key:
+                if not groq_key:
                     st.error("⚠️ Please configure Groq API key in sidebar")
                     full_response = "API key not configured. Please add your Groq API key."
                 else:
@@ -919,9 +826,9 @@ def render_chat_interface():
                             final_prompt = f"{context}User question: {prompt}"
                             
                             if image_base64:
-                                stream = vision_response_generator(image_base64, prompt, api_key)
+                                stream = vision_response_generator(image_base64, prompt, groq_key)
                             else:
-                                stream = safe_text_stream(final_prompt, api_key)
+                                stream = safe_text_stream(final_prompt, groq_key)
                             
                             full_response = st.write_stream(stream)
                             try_execute_graph(full_response)
@@ -955,7 +862,7 @@ def render_chat_interface():
                 st.markdown(prompt)
             
             with st.chat_message("assistant"):
-                if not api_key:
+                if not groq_key:
                     st.error("⚠️ Please configure Groq API key")
                     full_response = "API key not configured."
                 else:
@@ -968,7 +875,7 @@ def render_chat_interface():
                                     context += search_result + "\n\n"
                             
                             final_prompt = f"{context}Math problem: {prompt}"
-                            stream = safe_math_stream(final_prompt, api_key)
+                            stream = safe_math_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
                             try_execute_graph(full_response)
                             
@@ -1001,7 +908,7 @@ def render_chat_interface():
                 st.markdown(prompt)
             
             with st.chat_message("assistant"):
-                if not api_key:
+                if not groq_key:
                     st.error("⚠️ Please configure Groq API key")
                     full_response = "API key not configured."
                 else:
@@ -1014,7 +921,7 @@ def render_chat_interface():
                                     context += search_result + "\n\n"
                             
                             final_prompt = f"{context}Economics question: {prompt}"
-                            stream = safe_econ_stream(final_prompt, api_key)
+                            stream = safe_econ_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
                             try_execute_graph(full_response)
                             
@@ -1035,7 +942,7 @@ def render_chat_interface():
     # Tab 4: Image AI
     with tab4:
         st.markdown("### 🎨 AI Image Analysis")
-        st.info("📸 Upload images for AI-powered analysis and description!")
+        st.info("📸 Upload images for AI-powered analysis and description! (Powered by Gemini - FREE)")
         
         uploaded_image = st.file_uploader(
             "📸 Upload Image",
@@ -1050,39 +957,34 @@ def render_chat_interface():
                 st.image(uploaded_image, width=300, caption="Your Image")
             
             with col2:
-                with st.spinner("🧠 Analyzing image..."):
-                    if not api_key:
-                        st.error("⚠️ Please configure Groq API key")
-                    else:
-                        img_base64 = process_uploaded_image(uploaded_image.getvalue())
-                        if img_base64:
-                            analysis_prompt = st.text_input(
-                                "What would you like to know about this image?",
-                                placeholder="e.g., Describe this image, Solve the math problem, etc."
-                            )
-                            
-                            if st.button("🔍 Analyze Image", use_container_width=True):
-                                with st.chat_message("assistant"):
-                                    stream = vision_response_generator(
-                                        img_base64,
-                                        analysis_prompt or "বিশ্লেষণ করে বলুন এই ছবিতে কী আছে",
-                                        api_key
-                                    )
-                                    response = st.write_stream(stream)
-                                    
-                                    if response:
-                                        st.session_state.messages.append({
-                                            "role": "assistant",
-                                            "content": f"🖼️ Image Analysis: {response}"
-                                        })
-                        else:
-                            st.error("Failed to process image")
+                if not groq_key:
+                    st.error("⚠️ Please configure Groq API key")
+                else:
+                    img_base64 = process_uploaded_image(uploaded_image.getvalue())
+                    if img_base64:
+                        analysis_prompt = st.text_input(
+                            "What would you like to know about this image?",
+                            placeholder="e.g., Describe this image, Solve the math problem, etc."
+                        )
+                        
+                        if st.button("🔍 Analyze Image with Gemini", use_container_width=True):
+                            with st.chat_message("assistant"):
+                                stream = vision_response_generator(
+                                    img_base64,
+                                    analysis_prompt or "বিশ্লেষণ করে বলুন এই ছবিতে কী আছে",
+                                    groq_key
+                                )
+                                response = st.write_stream(stream)
+                                
+                                if response:
+                                    st.session_state.messages.append({
+                                        "role": "assistant",
+                                        "content": f"🖼️ Image Analysis: {response}"
+                                    })
 
 # ============ MAIN APP ============
 
 def main():
-    """Main application entry point"""
-    
     if not st.session_state.logged_in:
         render_auth()
         return
@@ -1094,7 +996,7 @@ def main():
     st.markdown("""
     <div style="text-align: center; color: #888; padding: 1rem;">
         <p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p>
-        <p style="font-size: 0.8rem;">Powered by Groq AI • Secure • Fast • Intelligent</p>
+        <p style="font-size: 0.8rem;">Powered by Groq AI + Gemini Vision • Secure • Fast • Intelligent • FREE</p>
     </div>
     """, unsafe_allow_html=True)
 
