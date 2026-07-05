@@ -457,7 +457,7 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         genai.configure(api_key=gemini_key)
         
         # ✅ BEST FOR FREE TIER - 60 requests per minute
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         
         image_data = base64.b64decode(image_base64)
         image = Image.open(BytesIO(image_data))
