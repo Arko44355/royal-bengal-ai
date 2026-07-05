@@ -218,6 +218,31 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ============ SESSION STATE INITIALIZATION ============
+def init_session_state():
+    """Initialize all session state variables"""
+    defaults = {
+        "logged_in": False,
+        "user_profile": {},
+        "messages": [],
+        "math_messages": [],
+        "econ_messages": [],
+        "current_session_id_tab1": None,
+        "current_session_id_tab2": None,
+        "current_session_id_tab3": None,
+        "renaming_session_id": None,
+        "image_uploaded": False,
+        "uploaded_image": None,
+        "api_key_configured": False,
+        "web_search_enabled": True  # ← এখানে ডিফল্ট সেট করুন
+    }
+    
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+init_session_state()
+
 # ============ DATABASE FUNCTIONS ============
 def get_db_connection():
     """Create database connection with timeout"""
@@ -268,30 +293,6 @@ def init_db():
 
 # Initialize database
 init_db()
-
-# ============ SESSION STATE INITIALIZATION ============
-def init_session_state():
-    """Initialize all session state variables"""
-    defaults = {
-        "logged_in": False,
-        "user_profile": {},
-        "messages": [],
-        "math_messages": [],
-        "econ_messages": [],
-        "current_session_id_tab1": None,
-        "current_session_id_tab2": None,
-        "current_session_id_tab3": None,
-        "renaming_session_id": None,
-        "image_uploaded": False,
-        "uploaded_image": None,
-        "api_key_configured": False
-    }
-    
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
-init_session_state()
 
 # ============ HELPER FUNCTIONS ============
 
@@ -398,7 +399,6 @@ def rename_session(session_id, new_title):
 
 def get_api_key():
     """Get API key from various sources"""
-    # Priority: 1. User input, 2. Secrets, 3. Environment variable
     if "user_api_key" in st.session_state and st.session_state.user_api_key:
         return st.session_state.user_api_key
     elif "GROQ_API_KEY" in st.secrets:
@@ -588,13 +588,11 @@ def vision_response_generator(image_base64, user_prompt, api_key):
 def try_execute_graph(full_response):
     """Extract and execute Python code for graphs from response"""
     try:
-        # Check if response contains plotting code
         if "```python" in full_response:
             code_blocks = full_response.split("```python")
             for block in code_blocks[1:]:
                 code = block.split("```")[0].strip()
                 if "fig" in code or "plt" in code:
-                    # Execute the plotting code
                     env = {
                         "np": np, 
                         "go": go, 
@@ -604,7 +602,6 @@ def try_execute_graph(full_response):
                     }
                     exec(code, env)
                     
-                    # Display the plot
                     if "fig" in env and isinstance(env["fig"], go.Figure):
                         st.plotly_chart(env["fig"], use_container_width=True)
                     elif "plt" in env and plt.get_fignums():
@@ -612,7 +609,6 @@ def try_execute_graph(full_response):
                         plt.clf()
                     break
     except Exception as e:
-        # Silently fail if graph execution fails
         pass
 
 # ============ UI COMPONENTS ============
@@ -722,7 +718,6 @@ def render_sidebar():
                 st.warning("⚠️ Please add your Groq API key")
                 st.session_state.api_key_configured = False
             
-            # Test API key button
             if st.button("🔍 Test API Key", use_container_width=True):
                 if st.session_state.api_key_configured:
                     with st.spinner("Testing API key..."):
@@ -745,22 +740,22 @@ def render_sidebar():
         if voice_on:
             st.info("🎤 Voice feature coming soon!")
         
-        # Web Search
+        # Web Search - FIXED
+        st.markdown("---")
         if WEB_SEARCH_SUPPORT:
-            web_search_enabled = st.checkbox(
+            st.session_state.web_search_enabled = st.checkbox(
                 "🌐 Live Web Search",
-                value=True,
+                value=st.session_state.get("web_search_enabled", True),
                 help="Enable DuckDuckGo search for real-time information"
             )
         else:
-            web_search_enabled = False
+            st.session_state.web_search_enabled = False
             st.warning("⚠️ Web search not available. Install duckduckgo-search")
         
         # Chat History
         st.markdown("---")
         st.markdown("### 📁 Chat History")
         
-        # Display sessions for each tab
         tabs = [
             ("💬 AI Assistant", "tab1", "messages", "current_session_id_tab1"),
             ("📊 Math Wave", "tab2", "math_messages", "current_session_id_tab2"),
@@ -769,13 +764,11 @@ def render_sidebar():
         
         for tab_name, tab_id, msg_key, session_key in tabs:
             with st.expander(f"📂 {tab_name}", expanded=False):
-                # New chat button
                 if st.button(f"➕ New Chat", key=f"new_{tab_id}", use_container_width=True):
                     st.session_state[msg_key] = []
                     st.session_state[session_key] = None
                     st.rerun()
                 
-                # List sessions
                 sessions = get_sessions(st.session_state.user_profile['email'], tab_id)
                 if not sessions:
                     st.info("No saved chats")
@@ -805,7 +798,6 @@ def render_sidebar():
                                         st.session_state[session_key] = None
                                     st.rerun()
                         
-                        # Show rename input if this session is being renamed
                         if st.session_state.renaming_session_id == s_id:
                             new_title = st.text_input("New title:", value=title, key=f"rename_input_{s_id}")
                             if st.button("Save", key=f"save_rename_{s_id}"):
@@ -828,7 +820,6 @@ def render_sidebar():
                 st.toast("Cache cleared!")
                 st.rerun()
         
-        # Logout
         st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True):
             for key in ["logged_in", "user_profile", "messages", "math_messages", "econ_messages"]:
@@ -840,7 +831,6 @@ def render_chat_interface():
     """Main chat interface"""
     st.markdown('<h1 class="main-header">🐅 Royal Bengal AI Machine</h1>', unsafe_allow_html=True)
     
-    # Show user info
     st.markdown(f"""
     <div style="text-align: center; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 1rem;">
         👋 Welcome, {st.session_state.user_profile.get('name', 'User')}! 
@@ -848,12 +838,10 @@ def render_chat_interface():
     </div>
     """, unsafe_allow_html=True)
     
-    # Check API key
     api_key = get_api_key()
     if not api_key:
         st.warning("⚠️ Please add your Groq API key in the sidebar to use AI features.")
     
-    # Tabs
     tab1, tab2, tab3, tab4 = st.tabs([
         "💬 AI Assistant",
         "📊 Math Solver",
@@ -865,7 +853,6 @@ def render_chat_interface():
     with tab1:
         st.markdown("### 💬 AI Assistant with Document Support")
         
-        # File upload
         uploaded_file = st.file_uploader(
             "📎 Upload PDF or Image",
             type=["pdf", "txt", "png", "jpg", "jpeg"],
@@ -880,7 +867,6 @@ def render_chat_interface():
             file_bytes = uploaded_file.getvalue()
             file_name = uploaded_file.name.lower()
             
-            # Handle PDF
             if file_name.endswith(".pdf") and PDF_SUPPORT:
                 try:
                     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
@@ -894,26 +880,21 @@ def render_chat_interface():
                 except Exception as e:
                     st.error(f"PDF processing error: {str(e)}")
             
-            # Handle Image
             elif file_name.split('.')[-1] in ["png", "jpg", "jpeg"]:
                 st.image(file_bytes, width=300, caption="Uploaded Image")
                 image_base64 = process_uploaded_image(file_bytes)
                 if image_base64:
                     st.success("✅ Image processed successfully!")
         
-        # Display chat history
         for msg in st.session_state.messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
         
-        # Chat input
         if prompt := st.chat_input("আপনার প্রশ্ন লিখুন...", key="t1_chat"):
-            # Add user message
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             
-            # Generate response
             with st.chat_message("assistant"):
                 if not api_key:
                     st.error("⚠️ Please configure Groq API key in sidebar")
@@ -921,30 +902,26 @@ def render_chat_interface():
                 else:
                     try:
                         with st.spinner("🤔 চিন্তা করছি..."):
-                            # Prepare context
                             context = ""
                             if extracted_text:
                                 context += f"📄 Document context:\n{extracted_text}\n\n"
                             
-                            if web_search_enabled:
+                            # FIXED: Use session state for web_search_enabled
+                            if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
                                     context += search_result + "\n\n"
                             
                             final_prompt = f"{context}User question: {prompt}"
                             
-                            # Generate response
                             if image_base64:
                                 stream = vision_response_generator(image_base64, prompt, api_key)
                             else:
                                 stream = safe_text_stream(final_prompt, api_key)
                             
                             full_response = st.write_stream(stream)
-                            
-                            # Try to render graphs if any
                             try_execute_graph(full_response)
                             
-                            # Save session
                             session_id = st.session_state.current_session_id_tab1 or str(uuid.uuid4())
                             st.session_state.current_session_id_tab1 = session_id
                             st.session_state.messages.append({"role": "assistant", "content": full_response})
@@ -964,19 +941,15 @@ def render_chat_interface():
         st.markdown("### 📊 Advanced Math Solver")
         st.info("📝 Ask any math problem - algebra, calculus, statistics, or complex equations!")
         
-        # Display chat history
         for msg in st.session_state.math_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
         
-        # Chat input
         if prompt := st.chat_input("গাণিতিক সমস্যা লিখুন...", key="t2_chat"):
-            # Add user message
             st.session_state.math_messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             
-            # Generate response
             with st.chat_message("assistant"):
                 if not api_key:
                     st.error("⚠️ Please configure Groq API key")
@@ -984,9 +957,9 @@ def render_chat_interface():
                 else:
                     try:
                         with st.spinner("🧮 সমাধান করছি..."):
-                            # Add web search if enabled
                             context = ""
-                            if web_search_enabled:
+                            # FIXED: Use session state for web_search_enabled
+                            if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
                                     context += search_result + "\n\n"
@@ -994,11 +967,8 @@ def render_chat_interface():
                             final_prompt = f"{context}Math problem: {prompt}"
                             stream = safe_math_stream(final_prompt, api_key)
                             full_response = st.write_stream(stream)
-                            
-                            # Try to render graphs
                             try_execute_graph(full_response)
                             
-                            # Save session
                             session_id = st.session_state.current_session_id_tab2 or str(uuid.uuid4())
                             st.session_state.current_session_id_tab2 = session_id
                             st.session_state.math_messages.append({"role": "assistant", "content": full_response})
@@ -1018,19 +988,15 @@ def render_chat_interface():
         st.markdown("### 📈 Economics Analysis")
         st.info("📊 Ask about supply-demand, market equilibrium, macroeconomics, or any economic concept!")
         
-        # Display chat history
         for msg in st.session_state.econ_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
         
-        # Chat input
         if prompt := st.chat_input("অর্থনীতির প্রশ্ন লিখুন...", key="t3_chat"):
-            # Add user message
             st.session_state.econ_messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             
-            # Generate response
             with st.chat_message("assistant"):
                 if not api_key:
                     st.error("⚠️ Please configure Groq API key")
@@ -1038,9 +1004,9 @@ def render_chat_interface():
                 else:
                     try:
                         with st.spinner("📈 বিশ্লেষণ করছি..."):
-                            # Add web search if enabled
                             context = ""
-                            if web_search_enabled:
+                            # FIXED: Use session state for web_search_enabled
+                            if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
                                     context += search_result + "\n\n"
@@ -1048,11 +1014,8 @@ def render_chat_interface():
                             final_prompt = f"{context}Economics question: {prompt}"
                             stream = safe_econ_stream(final_prompt, api_key)
                             full_response = st.write_stream(stream)
-                            
-                            # Try to render graphs
                             try_execute_graph(full_response)
                             
-                            # Save session
                             session_id = st.session_state.current_session_id_tab3 or str(uuid.uuid4())
                             st.session_state.current_session_id_tab3 = session_id
                             st.session_state.econ_messages.append({"role": "assistant", "content": full_response})
@@ -1072,7 +1035,6 @@ def render_chat_interface():
         st.markdown("### 🎨 AI Image Analysis")
         st.info("📸 Upload images for AI-powered analysis and description!")
         
-        # Image upload
         uploaded_image = st.file_uploader(
             "📸 Upload Image",
             type=["png", "jpg", "jpeg", "gif", "bmp"],
@@ -1090,10 +1052,8 @@ def render_chat_interface():
                     if not api_key:
                         st.error("⚠️ Please configure Groq API key")
                     else:
-                        # Process image
                         img_base64 = process_uploaded_image(uploaded_image.getvalue())
                         if img_base64:
-                            # Ask for analysis
                             analysis_prompt = st.text_input(
                                 "What would you like to know about this image?",
                                 placeholder="e.g., Describe this image, Solve the math problem, etc."
@@ -1108,7 +1068,6 @@ def render_chat_interface():
                                     )
                                     response = st.write_stream(stream)
                                     
-                                    # Save to chat history
                                     if response:
                                         st.session_state.messages.append({
                                             "role": "assistant",
@@ -1122,18 +1081,13 @@ def render_chat_interface():
 def main():
     """Main application entry point"""
     
-    # Check login status
     if not st.session_state.logged_in:
         render_auth()
         return
     
-    # Render sidebar
     render_sidebar()
-    
-    # Render main interface
     render_chat_interface()
     
-    # Footer
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #888; padding: 1rem;">
