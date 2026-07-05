@@ -440,15 +440,13 @@ def safe_econ_stream(prompt, api_key):
     except Exception as e:
         yield f"⚠️ Economics Error: {str(e)}"
 
-# ============ GEMINI 3.1 PRO VISION WITH THINKING_LEVEL="HIGH" ============
 def vision_response_generator(image_base64, user_prompt, api_key):
-    """Gemini 3.1 Pro Vision - Latest model with thinking_level="high" """
+    """Gemini 1.5 Flash - 60 requests/min FREE"""
     
     gemini_key = get_gemini_api_key()
     if not gemini_key:
         yield "⚠️ **Gemini API Key পাওয়া যায়নি!**"
-        yield "\n\n📢 ফ্রি Gemini Vision ব্যবহার করতে API key লাগবে।"
-        yield "\n🔑 makersuite.google.com থেকে ফ্রি key নিন!"
+        yield "\n\n📢 makersuite.google.com থেকে ফ্রি key নিন!"
         return
     
     if not image_base64:
@@ -456,17 +454,14 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         return
     
     try:
-        # Configure Gemini
         genai.configure(api_key=gemini_key)
         
-        # ✅ LATEST MODEL - Gemini 3.1 Pro Preview (February 2026)
-        model = genai.GenerativeModel('gemini-3.1-pro-preview')
+        # ✅ BEST FOR FREE TIER - 60 requests per minute
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Decode image
         image_data = base64.b64decode(image_base64)
         image = Image.open(BytesIO(image_data))
         
-        # Prepare prompt (Bengali)
         prompt = f"""You are Royal Bengal AI Machine. 
         Analyze this image carefully and respond in Bengali script.
         Provide a detailed, friendly, and helpful explanation.
@@ -474,17 +469,16 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         If it's a document, summarize the key points.
         User question: {user_prompt if user_prompt else 'বিশ্লেষণ করে বলুন এই ছবিতে কী আছে।'}"""
         
-        
         response = model.generate_content([prompt, image])
         
         if response.text:
-            yield f"🤖 **Gemini 3.1 Pro Vision (thinking: HIGH):**\n\n{response.text}"
+            yield f"🤖 **Gemini 1.5 Flash (FREE):**\n\n{response.text}"
         else:
             yield "⚠️ Gemini Vision থেকে কোনো উত্তর পাওয়া যায়নি।"
             
     except Exception as e:
-        yield f"⚠️ Gemini Vision Error: {str(e)}"
-        yield "\n\n💡 আপনি কি ছবিটির বর্ণনা লিখে বলতে পারবেন? আমি টেক্সট আকারে সাহায্য করতে পারব!"
+        yield f"⚠️ Error: {str(e)}"
+        yield "\n\n💡 কিছুক্ষণ পর আবার চেষ্টা করুন।"
 
 def try_execute_graph(full_response):
     try:
