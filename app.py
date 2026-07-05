@@ -474,13 +474,8 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         If it's a document, summarize the key points.
         User question: {user_prompt if user_prompt else 'বিশ্লেষণ করে বলুন এই ছবিতে কী আছে।'}"""
         
-        # ✅ WITH THINKING_LEVEL="HIGH" - সর্বোচ্চ কোয়ালিটি
-        response = model.generate_content(
-            [prompt, image],
-            generation_config={
-                "thinking_level": "high"  # ⭐ Super intelligent!
-            }
-        )
+        
+        response = model.generate_content([prompt, image])
         
         if response.text:
             yield f"🤖 **Gemini 3.1 Pro Vision (thinking: HIGH):**\n\n{response.text}"
