@@ -15,9 +15,8 @@ import json
 import uuid
 import os
 from datetime import datetime
-import google.generativeai as genai
 
-# 🛡️ Safe imports with fallback
+# 🛡️ Safe imports
 try:
     import pdfplumber
     PDF_SUPPORT = True
@@ -47,9 +46,7 @@ st.set_page_config(
 # ============ CUSTOM CSS ============
 st.markdown("""
 <style>
-    .stApp {
-        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-    }
+    .stApp { background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); }
     .main-header {
         font-size: 2.8rem;
         font-weight: bold;
@@ -79,13 +76,8 @@ st.markdown("""
         border: 1px solid rgba(255, 107, 53, 0.3);
         color: #e0e0e0 !important;
     }
-    .css-1d391kg {
-        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    .css-1d391kg, .css-1d391kg p, .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 {
-        color: #ffffff !important;
-    }
+    .css-1d391kg { background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%) !important; border-right: 1px solid rgba(255, 255, 255, 0.05); }
+    .css-1d391kg, .css-1d391kg p, .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 { color: #ffffff !important; }
     .stTextInput > div > div > input {
         background: rgba(255, 255, 255, 0.1) !important;
         border: 1px solid rgba(255, 107, 53, 0.3) !important;
@@ -93,10 +85,7 @@ st.markdown("""
         color: white !important;
         padding: 0.75rem 1.5rem !important;
     }
-    .stTextInput > div > div > input:focus {
-        border-color: #FF6B35 !important;
-        box-shadow: 0 0 20px rgba(255, 107, 53, 0.2) !important;
-    }
+    .stTextInput > div > div > input:focus { border-color: #FF6B35 !important; box-shadow: 0 0 20px rgba(255, 107, 53, 0.2) !important; }
     .stButton > button {
         background: linear-gradient(45deg, #FF6B35, #F7931E) !important;
         color: white !important;
@@ -107,77 +96,25 @@ st.markdown("""
         transition: all 0.3s ease !important;
         box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3) !important;
     }
-    .stButton > button:hover {
-        transform: translateY(-2px) scale(1.02) !important;
-        box-shadow: 0 6px 25px rgba(255, 107, 53, 0.5) !important;
-    }
-    .streamlit-expanderHeader {
-        background: rgba(255, 255, 255, 0.05) !important;
-        border-radius: 10px !important;
-        color: white !important;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 2px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background: rgba(255, 255, 255, 0.05) !important;
-        border-radius: 10px !important;
-        color: #aaa !important;
-        padding: 0.5rem 1.5rem !important;
-    }
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #FF6B35, #F7931E) !important;
-        color: white !important;
-    }
-    .stAlert {
-        background: rgba(255, 255, 255, 0.05) !important;
-        backdrop-filter: blur(10px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        color: white !important;
-    }
-    .stCodeBlock {
-        background: rgba(0, 0, 0, 0.3) !important;
-        border-radius: 10px !important;
-    }
-    .footer {
-        text-align: center;
-        color: #888;
-        padding: 2rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
-        margin-top: 2rem;
-    }
-    .stProgress > div > div {
-        background: linear-gradient(45deg, #FF6B35, #F7931E) !important;
-    }
-    .stSelectbox > div > div {
-        background: rgba(255, 255, 255, 0.05) !important;
-        color: white !important;
-    }
-    .stFileUploader {
-        background: rgba(255, 255, 255, 0.03) !important;
-        border: 2px dashed rgba(255, 107, 53, 0.3) !important;
-        border-radius: 15px !important;
-        padding: 2rem !important;
-    }
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: linear-gradient(45deg, #FF6B35, #F7931E);
-        border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: #FF6B35;
-    }
+    .stButton > button:hover { transform: translateY(-2px) scale(1.02) !important; box-shadow: 0 6px 25px rgba(255, 107, 53, 0.5) !important; }
+    .streamlit-expanderHeader { background: rgba(255, 255, 255, 0.05) !important; border-radius: 10px !important; color: white !important; }
+    .stTabs [data-baseweb="tab-list"] { gap: 2px; }
+    .stTabs [data-baseweb="tab"] { background: rgba(255, 255, 255, 0.05) !important; border-radius: 10px !important; color: #aaa !important; padding: 0.5rem 1.5rem !important; }
+    .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #FF6B35, #F7931E) !important; color: white !important; }
+    .stAlert { background: rgba(255, 255, 255, 0.05) !important; backdrop-filter: blur(10px) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; color: white !important; }
+    .stCodeBlock { background: rgba(0, 0, 0, 0.3) !important; border-radius: 10px !important; }
+    .footer { text-align: center; color: #888; padding: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 2rem; }
+    .stProgress > div > div { background: linear-gradient(45deg, #FF6B35, #F7931E) !important; }
+    .stSelectbox > div > div { background: rgba(255, 255, 255, 0.05) !important; color: white !important; }
+    .stFileUploader { background: rgba(255, 255, 255, 0.03) !important; border: 2px dashed rgba(255, 107, 53, 0.3) !important; border-radius: 15px !important; padding: 2rem !important; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb { background: linear-gradient(45deg, #FF6B35, #F7931E); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #FF6B35; }
 </style>
 """, unsafe_allow_html=True)
 
-# ============ SESSION STATE INITIALIZATION ============
+# ============ SESSION STATE ============
 def init_session_state():
     defaults = {
         "logged_in": False,
@@ -192,16 +129,14 @@ def init_session_state():
         "image_uploaded": False,
         "uploaded_image": None,
         "api_key_configured": False,
-        "web_search_enabled": True,
-        "gemini_api_key": None
+        "web_search_enabled": True
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
-
 init_session_state()
 
-# ============ DATABASE FUNCTIONS ============
+# ============ DATABASE ============
 def get_db_connection():
     return sqlite3.connect("users.db", timeout=10, check_same_thread=False)
 
@@ -209,41 +144,18 @@ def init_db():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                email TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                password TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS chat_sessions (
-                session_id TEXT PRIMARY KEY,
-                email TEXT NOT NULL,
-                title TEXT NOT NULL,
-                messages_json TEXT NOT NULL,
-                tab_name TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (email) REFERENCES users(email)
-            )
-        ''')
-        cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_sessions_email_tab 
-            ON chat_sessions(email, tab_name, updated_at DESC)
-        ''')
+        cursor.execute('CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY, name TEXT NOT NULL, password TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
+        cursor.execute('CREATE TABLE IF NOT EXISTS chat_sessions (session_id TEXT PRIMARY KEY, email TEXT NOT NULL, title TEXT NOT NULL, messages_json TEXT NOT NULL, tab_name TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (email) REFERENCES users(email))')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_email_tab ON chat_sessions(email, tab_name, updated_at DESC)')
         conn.commit()
         conn.close()
         return True
     except Exception as e:
-        st.error(f"Database initialization error: {str(e)}")
+        st.error(f"Database error: {str(e)}")
         return False
-
 init_db()
 
 # ============ HELPER FUNCTIONS ============
-
 def process_uploaded_image(file_bytes):
     try:
         img = Image.open(BytesIO(file_bytes))
@@ -278,11 +190,7 @@ def save_session(session_id, email, title, messages, tab_name):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            INSERT OR REPLACE INTO chat_sessions 
-            (session_id, email, title, messages_json, tab_name, updated_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ''', (session_id, email, title, json.dumps(messages), tab_name))
+        cursor.execute('INSERT OR REPLACE INTO chat_sessions (session_id, email, title, messages_json, tab_name, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)', (session_id, email, title, json.dumps(messages), tab_name))
         conn.commit()
         conn.close()
         return True
@@ -294,12 +202,7 @@ def get_sessions(email, tab_name):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT session_id, title, messages_json 
-            FROM chat_sessions 
-            WHERE email = ? AND tab_name = ? 
-            ORDER BY updated_at DESC
-        ''', (email, tab_name))
+        cursor.execute('SELECT session_id, title, messages_json FROM chat_sessions WHERE email = ? AND tab_name = ? ORDER BY updated_at DESC', (email, tab_name))
         rows = cursor.fetchall()
         conn.close()
         return rows
@@ -323,11 +226,7 @@ def rename_session(session_id, new_title):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE chat_sessions 
-            SET title = ?, updated_at = CURRENT_TIMESTAMP 
-            WHERE session_id = ?
-        ''', (new_title, session_id))
+        cursor.execute('UPDATE chat_sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?', (new_title, session_id))
         conn.commit()
         conn.close()
         return True
@@ -345,33 +244,25 @@ def get_api_key():
     else:
         return None
 
-def get_gemini_api_key():
-    if "GEMINI_API_KEY" in st.secrets:
-        return st.secrets["GEMINI_API_KEY"]
-    elif "user_gemini_key" in st.session_state and st.session_state.user_gemini_key:
-        return st.session_state.user_gemini_key
+def get_novita_api_key():
+    if "NOVITA_API_KEY" in st.secrets:
+        return st.secrets["NOVITA_API_KEY"]
+    elif "user_novita_key" in st.session_state and st.session_state.user_novita_key:
+        return st.session_state.user_novita_key
     else:
         return None
 
-# ============ AI RESPONSE GENERATORS ============
-
+# ============ AI GENERATORS ============
 def safe_text_stream(prompt, api_key):
-    if not GROQ_SUPPORT:
-        yield "⚠️ Groq library not installed. Please install: pip install groq"
-        return
-    if not api_key:
-        yield "⚠️ API key not configured. Please add your Groq API key in the sidebar."
+    if not GROQ_SUPPORT or not api_key:
+        yield "⚠️ Groq API key needed."
         return
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": """You are Royal Bengal AI, created by Md Mohtasim Billah. 
-                Always respond in Bengali script. Be friendly, helpful, and professional. 
-                Explain concepts clearly with step-by-step reasoning. 
-                Use $$ LaTeX $$ for mathematical expressions. 
-                If the user asks about yourself, introduce as 'Royal Bengal AI Machine'."""},
+                {"role": "system", "content": """You are Royal Bengal AI. Respond in Bengali. Be friendly and professional. Use $$ LaTeX $$ for math."""},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -384,21 +275,18 @@ def safe_text_stream(prompt, api_key):
                 if content:
                     yield content
     except Exception as e:
-        yield f"⚠️ AI Error: {str(e)}. Please try again or check your API key."
+        yield f"⚠️ AI Error: {str(e)}"
 
 def safe_math_stream(prompt, api_key):
     if not GROQ_SUPPORT or not api_key:
-        yield "⚠️ API not configured. Please check your Groq API key."
+        yield "⚠️ Groq API key needed."
         return
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": """You are an expert Mathematics professor. 
-                Respond in Bengali script. Provide detailed step-by-step solutions. 
-                Use proper LaTeX formatting with $$ for equations. 
-                If visualization is needed, include Python code for plots using matplotlib or plotly."""},
+                {"role": "system", "content": """You are a Math professor. Respond in Bengali. Use $$ LaTeX $$."""},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.5,
@@ -415,17 +303,14 @@ def safe_math_stream(prompt, api_key):
 
 def safe_econ_stream(prompt, api_key):
     if not GROQ_SUPPORT or not api_key:
-        yield "⚠️ API not configured. Please check your Groq API key."
+        yield "⚠️ Groq API key needed."
         return
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": """You are an Economics professor. 
-                Respond in Bengali script. Provide detailed economic analysis. 
-                Include supply-demand curves, market equilibrium, and economic theories. 
-                Use LaTeX for formulas and include Python code for visualizations."""},
+                {"role": "system", "content": """You are an Economics professor. Respond in Bengali."""},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.5,
@@ -438,15 +323,17 @@ def safe_econ_stream(prompt, api_key):
                 if content:
                     yield content
     except Exception as e:
-        yield f"⚠️ Economics Error: {str(e)}"
+        yield f"⚠️ Econ Error: {str(e)}"
 
+# ============ NOVITA AI VISION (LAPTOP FRIENDLY) ============
 def vision_response_generator(image_base64, user_prompt, api_key):
-    """Gemini 1.5 Flash - 60 requests/min FREE"""
+    """Novita AI - DeepSeek Vision (Laptop-friendly)"""
     
-    gemini_key = get_gemini_api_key()
-    if not gemini_key:
-        yield "⚠️ **Gemini API Key পাওয়া যায়নি!**"
-        yield "\n\n📢 makersuite.google.com থেকে ফ্রি key নিন!"
+    novita_key = get_novita_api_key()
+    if not novita_key:
+        yield "⚠️ **Novita AI API Key পাওয়া যায়নি!**"
+        yield "\n\n📢 novita.ai থেকে ফ্রি API Key নিন!"
+        yield "\n🔑 নতুন ইউজার পায় $0.5 ফ্রি ক্রেডিট!"
         return
     
     if not image_base64:
@@ -454,31 +341,50 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         return
     
     try:
-        genai.configure(api_key=gemini_key)
+        from openai import OpenAI
         
-        # ✅ BEST FOR FREE TIER - 60 requests per minute
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        client = OpenAI(
+            base_url="https://api.novita.ai/openai",
+            api_key=novita_key,
+            timeout=60
+        )
         
-        image_data = base64.b64decode(image_base64)
-        image = Image.open(BytesIO(image_data))
+        response = client.chat.completions.create(
+            model="deepseek/deepseek-ocr-2",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"""You are Royal Bengal AI Machine. 
+                            Analyze this image carefully and respond in Bengali script.
+                            Provide a detailed, friendly, and helpful explanation.
+                            If it's a math problem, solve it step by step with LaTeX.
+                            If it's a document, summarize the key points.
+                            User question: {user_prompt if user_prompt else 'বিশ্লেষণ করে বলুন এই ছবিতে কী আছে।'}"""
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=1024,
+            temperature=0.7
+        )
         
-        prompt = f"""You are Royal Bengal AI Machine. 
-        Analyze this image carefully and respond in Bengali script.
-        Provide a detailed, friendly, and helpful explanation.
-        If it's a math problem, solve it step by step with LaTeX.
-        If it's a document, summarize the key points.
-        User question: {user_prompt if user_prompt else 'বিশ্লেষণ করে বলুন এই ছবিতে কী আছে।'}"""
-        
-        response = model.generate_content([prompt, image])
-        
-        if response.text:
-            yield f"🤖 **Gemini 1.5 Flash (FREE):**\n\n{response.text}"
+        if response.choices and response.choices[0].message.content:
+            yield f"🤖 **DeepSeek Vision (Novita AI):**\n\n{response.choices[0].message.content}"
         else:
-            yield "⚠️ Gemini Vision থেকে কোনো উত্তর পাওয়া যায়নি।"
+            yield "⚠️ Vision থেকে কোনো উত্তর পাওয়া যায়নি।"
             
     except Exception as e:
-        yield f"⚠️ Error: {str(e)}"
-        yield "\n\n💡 কিছুক্ষণ পর আবার চেষ্টা করুন।"
+        yield f"⚠️ DeepSeek Vision Error: {str(e)}"
+        yield "\n\n💡 আপনি কি ছবিটির বর্ণনা লিখে বলতে পারবেন? আমি টেক্সট আকারে সাহায্য করতে পারব!"
 
 def try_execute_graph(full_response):
     try:
@@ -487,13 +393,7 @@ def try_execute_graph(full_response):
             for block in code_blocks[1:]:
                 code = block.split("```")[0].strip()
                 if "fig" in code or "plt" in code:
-                    env = {
-                        "np": np, 
-                        "go": go, 
-                        "px": px, 
-                        "plt": plt,
-                        "st": st
-                    }
+                    env = {"np": np, "go": go, "px": px, "plt": plt, "st": st}
                     exec(code, env)
                     if "fig" in env and isinstance(env["fig"], go.Figure):
                         st.plotly_chart(env["fig"], use_container_width=True)
@@ -505,169 +405,102 @@ def try_execute_graph(full_response):
         pass
 
 # ============ UI COMPONENTS ============
-
 def render_auth():
     st.markdown('<h1 class="main-header">🐅 Royal Bengal AI Machine</h1>', unsafe_allow_html=True)
     st.markdown("### 🔐 Secure Access Panel")
-    
     tab1, tab2 = st.tabs(["🔑 Login", "📝 Sign Up"])
     
     with tab2:
         st.markdown("#### Create New Account")
-        reg_name = st.text_input("Full Name", key="reg_name", placeholder="Your full name")
-        reg_email = st.text_input("Email Address", key="reg_email", placeholder="your@email.com")
-        reg_pass = st.text_input("Password", type="password", key="reg_pass", placeholder="Choose a strong password")
-        reg_confirm = st.text_input("Confirm Password", type="password", key="reg_confirm", placeholder="Re-enter password")
-        
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if st.button("📝 Create Account", use_container_width=True):
-                if not all([reg_name, reg_email, reg_pass]):
-                    st.error("❌ Please fill all fields.")
-                elif reg_pass != reg_confirm:
-                    st.error("❌ Passwords don't match.")
-                elif len(reg_pass) < 6:
-                    st.error("❌ Password must be at least 6 characters.")
-                else:
-                    try:
-                        conn = get_db_connection()
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            "INSERT INTO users (email, name, password) VALUES (?, ?, ?)",
-                            (reg_email.strip().lower(), reg_name.strip(), reg_pass.strip())
-                        )
-                        conn.commit()
-                        conn.close()
-                        st.success("✅ Account created successfully! Please login.")
-                        st.balloons()
-                    except sqlite3.IntegrityError:
-                        st.error("❌ This email is already registered.")
-                    except Exception as e:
-                        st.error(f"❌ Registration error: {str(e)}")
+        reg_name = st.text_input("Full Name", key="reg_name")
+        reg_email = st.text_input("Email", key="reg_email")
+        reg_pass = st.text_input("Password", type="password", key="reg_pass")
+        reg_confirm = st.text_input("Confirm Password", type="password", key="reg_confirm")
+        if st.button("📝 Create Account", use_container_width=True):
+            if not all([reg_name, reg_email, reg_pass]):
+                st.error("❌ Please fill all fields.")
+            elif reg_pass != reg_confirm:
+                st.error("❌ Passwords don't match.")
+            elif len(reg_pass) < 6:
+                st.error("❌ Password must be at least 6 characters.")
+            else:
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT INTO users (email, name, password) VALUES (?, ?, ?)", (reg_email.strip().lower(), reg_name.strip(), reg_pass.strip()))
+                    conn.commit()
+                    conn.close()
+                    st.success("✅ Account created! Please login.")
+                    st.balloons()
+                except sqlite3.IntegrityError:
+                    st.error("❌ Email already registered.")
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
     
     with tab1:
         st.markdown("#### Welcome Back!")
-        login_email = st.text_input("Email", key="login_email", placeholder="your@email.com")
-        login_pass = st.text_input("Password", type="password", key="login_pass", placeholder="Enter your password")
-        
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if st.button("🔓 Unlock Dashboard", use_container_width=True):
-                if not all([login_email, login_pass]):
-                    st.error("❌ Please enter both email and password.")
-                else:
-                    try:
-                        conn = get_db_connection()
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            "SELECT name, password FROM users WHERE email = ?",
-                            (login_email.strip().lower(),)
-                        )
-                        user = cursor.fetchone()
-                        conn.close()
-                        
-                        if user and login_pass.strip() == user[1]:
-                            st.session_state.logged_in = True
-                            st.session_state.user_profile = {
-                                "name": user[0],
-                                "email": login_email.strip().lower()
-                            }
-                            st.rerun()
-                        else:
-                            st.error("❌ Invalid email or password.")
-                    except Exception as e:
-                        st.error(f"❌ Login error: {str(e)}")
+        login_email = st.text_input("Email", key="login_email")
+        login_pass = st.text_input("Password", type="password", key="login_pass")
+        if st.button("🔓 Unlock Dashboard", use_container_width=True):
+            if not all([login_email, login_pass]):
+                st.error("❌ Please enter both email and password.")
+            else:
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT name, password FROM users WHERE email = ?", (login_email.strip().lower(),))
+                    user = cursor.fetchone()
+                    conn.close()
+                    if user and login_pass.strip() == user[1]:
+                        st.session_state.logged_in = True
+                        st.session_state.user_profile = {"name": user[0], "email": login_email.strip().lower()}
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid email or password.")
+                except Exception as e:
+                    st.error(f"❌ Login error: {str(e)}")
 
 def render_sidebar():
     with st.sidebar:
-        st.markdown(f"""
-        <div style="text-align: center; padding: 1rem;">
-            <h2 style="color: #FF6B35;">🐅 Royal Bengal AI</h2>
-            <p style="color: #aaa;">Welcome, {st.session_state.user_profile.get('name', 'User')}!</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown(f"""<div style="text-align:center;padding:1rem;"><h2 style="color:#FF6B35;">🐅 Royal Bengal AI</h2><p style="color:#aaa;">Welcome, {st.session_state.user_profile.get('name', 'User')}!</p></div>""", unsafe_allow_html=True)
         st.markdown("---")
         
         with st.expander("🔑 API Configuration", expanded=True):
-            api_key = st.text_input(
-                "Groq API Key",
-                type="password",
-                placeholder="Enter your Groq API key...",
-                help="Get your API key from console.groq.com"
-            )
-            
+            # Groq API
+            api_key = st.text_input("Groq API Key", type="password", placeholder="Enter Groq API key...")
             if api_key:
                 st.session_state.user_api_key = api_key
-                st.session_state.api_key_configured = True
                 st.success("✅ Groq API Key configured!")
             elif get_api_key():
-                st.success("✅ Groq API Key found in secrets/environment")
-                st.session_state.api_key_configured = True
+                st.success("✅ Groq API Key found in secrets")
             else:
-                st.warning("⚠️ Please add your Groq API key")
-                st.session_state.api_key_configured = False
+                st.warning("⚠️ Please add Groq API key")
             
             st.markdown("---")
-            st.markdown("🟢 **Gemini 3.1 Pro Vision (FREE)**")
-            gemini_key = st.text_input(
-                "Gemini API Key",
-                type="password",
-                placeholder="Enter Gemini API key...",
-                help="Get free key from makersuite.google.com"
-            )
-            
-            if gemini_key:
-                st.session_state.user_gemini_key = gemini_key
-                st.success("✅ Gemini API Key configured!")
-            elif get_gemini_api_key():
-                st.success("✅ Gemini API Key found in secrets")
+            # Novita AI (Vision)
+            st.markdown("🟢 **Novita AI (DeepSeek Vision) - FREE**")
+            novita_key = st.text_input("Novita API Key", type="password", placeholder="Enter Novita API key...", help="Get from novita.ai")
+            if novita_key:
+                st.session_state.user_novita_key = novita_key
+                st.success("✅ Novita API Key configured!")
+            elif get_novita_api_key():
+                st.success("✅ Novita API Key found in secrets")
             else:
-                st.warning("⚠️ Gemini key needed for image analysis")
-            
-            if st.button("🔍 Test API Keys", use_container_width=True):
-                if get_api_key():
-                    st.success("✅ Groq API Key working!")
-                else:
-                    st.error("❌ Groq API Key not configured")
-                
-                if get_gemini_api_key():
-                    st.success("✅ Gemini API Key working!")
-                else:
-                    st.warning("⚠️ Gemini API Key not configured")
-        
-        st.markdown("---")
-        voice_on = st.checkbox("🎙️ Voice Assistant", help="Enable voice input/output")
-        if voice_on:
-            st.info("🎤 Voice feature coming soon!")
+                st.warning("⚠️ Novita key needed for image analysis")
         
         st.markdown("---")
         if WEB_SEARCH_SUPPORT:
-            st.session_state.web_search_enabled = st.checkbox(
-                "🌐 Live Web Search",
-                value=st.session_state.get("web_search_enabled", True),
-                help="Enable DuckDuckGo search for real-time information"
-            )
-        else:
-            st.session_state.web_search_enabled = False
-            st.warning("⚠️ Web search not available. Install duckduckgo-search")
+            st.session_state.web_search_enabled = st.checkbox("🌐 Live Web Search", value=st.session_state.get("web_search_enabled", True))
         
         st.markdown("---")
         st.markdown("### 📁 Chat History")
-        
-        tabs = [
-            ("💬 AI Assistant", "tab1", "messages", "current_session_id_tab1"),
-            ("📊 Math Wave", "tab2", "math_messages", "current_session_id_tab2"),
-            ("📈 Economics", "tab3", "econ_messages", "current_session_id_tab3")
-        ]
-        
+        tabs = [("💬 AI Assistant", "tab1", "messages", "current_session_id_tab1"), ("📊 Math Wave", "tab2", "math_messages", "current_session_id_tab2"), ("📈 Economics", "tab3", "econ_messages", "current_session_id_tab3")]
         for tab_name, tab_id, msg_key, session_key in tabs:
             with st.expander(f"📂 {tab_name}", expanded=False):
                 if st.button(f"➕ New Chat", key=f"new_{tab_id}", use_container_width=True):
                     st.session_state[msg_key] = []
                     st.session_state[session_key] = None
                     st.rerun()
-                
                 sessions = get_sessions(st.session_state.user_profile['email'], tab_id)
                 if not sessions:
                     st.info("No saved chats")
@@ -683,12 +516,10 @@ def render_sidebar():
                                     st.rerun()
                                 except:
                                     st.error("Failed to load chat")
-                        
                         with col2:
                             if st.button("✏️", key=f"rename_{tab_id}_{s_id}", help="Rename"):
                                 st.session_state.renaming_session_id = s_id
                                 st.rerun()
-                        
                         with col3:
                             if st.button("🗑️", key=f"del_{tab_id}_{s_id}", help="Delete"):
                                 if delete_session(s_id):
@@ -696,7 +527,6 @@ def render_sidebar():
                                         st.session_state[msg_key] = []
                                         st.session_state[session_key] = None
                                     st.rerun()
-                        
                         if st.session_state.renaming_session_id == s_id:
                             new_title = st.text_input("New title:", value=title, key=f"rename_input_{s_id}")
                             if st.button("Save", key=f"save_rename_{s_id}"):
@@ -706,7 +536,6 @@ def render_sidebar():
         
         st.markdown("---")
         st.markdown("### ⚡ Quick Controls")
-        
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔄 Refresh", use_container_width=True):
@@ -727,65 +556,40 @@ def render_sidebar():
 
 def render_chat_interface():
     st.markdown('<h1 class="main-header">🐅 Royal Bengal AI Machine</h1>', unsafe_allow_html=True)
-    
-    st.markdown(f"""
-    <div style="text-align: center; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 1rem;">
-        👋 Welcome, {st.session_state.user_profile.get('name', 'User')}! 
-        <span style="background: #4caf50; color: white; padding: 0.2rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">● Online</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div style="text-align:center;padding:0.5rem;background:rgba(255,255,255,0.05);border-radius:10px;margin-bottom:1rem;">👋 Welcome, {st.session_state.user_profile.get('name', 'User')}! <span style="background:#4caf50;color:white;padding:0.2rem 0.8rem;border-radius:20px;font-size:0.8rem;">● Online</span></div>""", unsafe_allow_html=True)
     
     groq_key = get_api_key()
-    gemini_key = get_gemini_api_key()
+    novita_key = get_novita_api_key()
     
     if not groq_key:
-        st.warning("⚠️ Please add your Groq API key in the sidebar.")
-    if not gemini_key:
-        st.info("💡 Gemini API key optional - for image analysis only (FREE)")
+        st.warning("⚠️ Groq API key needed for text/math/econ")
+    if not novita_key:
+        st.info("💡 Novita API key needed for image analysis (FREE)")
     
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "💬 AI Assistant",
-        "📊 Math Solver",
-        "📈 Economics",
-        "🎨 Image AI"
-    ])
+    tab1, tab2, tab3, tab4 = st.tabs(["💬 AI Assistant", "📊 Math Solver", "📈 Economics", "🎨 Image AI"])
     
     # Tab 1: AI Assistant
     with tab1:
         st.markdown("### 💬 AI Assistant with Document Support")
-        
-        uploaded_file = st.file_uploader(
-            "📎 Upload PDF or Image",
-            type=["pdf", "txt", "png", "jpg", "jpeg"],
-            key="tab1_uploader",
-            help="Upload PDF for text extraction or images for AI analysis"
-        )
-        
+        uploaded_file = st.file_uploader("📎 Upload PDF or Image", type=["pdf", "txt", "png", "jpg", "jpeg"], key="tab1_uploader")
         extracted_text = ""
         image_base64 = ""
         
         if uploaded_file:
             file_bytes = uploaded_file.getvalue()
             file_name = uploaded_file.name.lower()
-            
             if file_name.endswith(".pdf") and PDF_SUPPORT:
                 try:
                     with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-                        extracted_text = "\n".join([
-                            p.extract_text() or "" 
-                            for p in pdf.pages
-                        ])
-                    st.success(f"✅ PDF processed: {len(extracted_text)} characters extracted")
-                    with st.expander("📄 View extracted text"):
-                        st.text(extracted_text[:1000] + "..." if len(extracted_text) > 1000 else extracted_text)
+                        extracted_text = "\n".join([p.extract_text() or "" for p in pdf.pages])
+                    st.success(f"✅ PDF processed: {len(extracted_text)} characters")
                 except Exception as e:
-                    st.error(f"PDF processing error: {str(e)}")
-            
+                    st.error(f"PDF error: {str(e)}")
             elif file_name.split('.')[-1] in ["png", "jpg", "jpeg"]:
-                st.image(file_bytes, width=300, caption="Uploaded Image")
+                st.image(file_bytes, width=300)
                 image_base64 = process_uploaded_image(file_bytes)
                 if image_base64:
-                    st.success("✅ Image processed successfully!")
+                    st.success("✅ Image processed!")
         
         for msg in st.session_state.messages:
             with st.chat_message(msg["role"]):
@@ -795,199 +599,129 @@ def render_chat_interface():
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
-            
             with st.chat_message("assistant"):
                 if not groq_key:
-                    st.error("⚠️ Please configure Groq API key in sidebar")
-                    full_response = "API key not configured. Please add your Groq API key."
+                    st.error("⚠️ Groq API key required")
                 else:
                     try:
-                        with st.spinner("🤔 চিন্তা করছি..."):
+                        with st.spinner("🤔 Thinking..."):
                             context = ""
                             if extracted_text:
                                 context += f"📄 Document context:\n{extracted_text}\n\n"
-                            
                             if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
                                     context += search_result + "\n\n"
-                            
                             final_prompt = f"{context}User question: {prompt}"
-                            
                             if image_base64:
                                 stream = vision_response_generator(image_base64, prompt, groq_key)
                             else:
                                 stream = safe_text_stream(final_prompt, groq_key)
-                            
                             full_response = st.write_stream(stream)
                             try_execute_graph(full_response)
-                            
                             session_id = st.session_state.current_session_id_tab1 or str(uuid.uuid4())
                             st.session_state.current_session_id_tab1 = session_id
                             st.session_state.messages.append({"role": "assistant", "content": full_response})
-                            save_session(
-                                session_id,
-                                st.session_state.user_profile['email'],
-                                prompt[:50],
-                                st.session_state.messages,
-                                "tab1"
-                            )
+                            save_session(session_id, st.session_state.user_profile['email'], prompt[:50], st.session_state.messages, "tab1")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
-                        full_response = f"⚠️ Error occurred: {str(e)}"
     
     # Tab 2: Math Solver
     with tab2:
         st.markdown("### 📊 Advanced Math Solver")
-        st.info("📝 Ask any math problem - algebra, calculus, statistics, or complex equations!")
-        
         for msg in st.session_state.math_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
-        
         if prompt := st.chat_input("গাণিতিক সমস্যা লিখুন...", key="t2_chat"):
             st.session_state.math_messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
-            
             with st.chat_message("assistant"):
                 if not groq_key:
-                    st.error("⚠️ Please configure Groq API key")
-                    full_response = "API key not configured."
+                    st.error("⚠️ Groq API key required")
                 else:
                     try:
-                        with st.spinner("🧮 সমাধান করছি..."):
+                        with st.spinner("🧮 Solving..."):
                             context = ""
                             if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
                                     context += search_result + "\n\n"
-                            
                             final_prompt = f"{context}Math problem: {prompt}"
                             stream = safe_math_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
                             try_execute_graph(full_response)
-                            
                             session_id = st.session_state.current_session_id_tab2 or str(uuid.uuid4())
                             st.session_state.current_session_id_tab2 = session_id
                             st.session_state.math_messages.append({"role": "assistant", "content": full_response})
-                            save_session(
-                                session_id,
-                                st.session_state.user_profile['email'],
-                                prompt[:50],
-                                st.session_state.math_messages,
-                                "tab2"
-                            )
+                            save_session(session_id, st.session_state.user_profile['email'], prompt[:50], st.session_state.math_messages, "tab2")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
-                        full_response = f"⚠️ Error occurred: {str(e)}"
     
     # Tab 3: Economics
     with tab3:
         st.markdown("### 📈 Economics Analysis")
-        st.info("📊 Ask about supply-demand, market equilibrium, macroeconomics, or any economic concept!")
-        
         for msg in st.session_state.econ_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
-        
         if prompt := st.chat_input("অর্থনীতির প্রশ্ন লিখুন...", key="t3_chat"):
             st.session_state.econ_messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
-            
             with st.chat_message("assistant"):
                 if not groq_key:
-                    st.error("⚠️ Please configure Groq API key")
-                    full_response = "API key not configured."
+                    st.error("⚠️ Groq API key required")
                 else:
                     try:
-                        with st.spinner("📈 বিশ্লেষণ করছি..."):
+                        with st.spinner("📈 Analyzing..."):
                             context = ""
                             if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
                                     context += search_result + "\n\n"
-                            
                             final_prompt = f"{context}Economics question: {prompt}"
                             stream = safe_econ_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
                             try_execute_graph(full_response)
-                            
                             session_id = st.session_state.current_session_id_tab3 or str(uuid.uuid4())
                             st.session_state.current_session_id_tab3 = session_id
                             st.session_state.econ_messages.append({"role": "assistant", "content": full_response})
-                            save_session(
-                                session_id,
-                                st.session_state.user_profile['email'],
-                                prompt[:50],
-                                st.session_state.econ_messages,
-                                "tab3"
-                            )
+                            save_session(session_id, st.session_state.user_profile['email'], prompt[:50], st.session_state.econ_messages, "tab3")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
-                        full_response = f"⚠️ Error occurred: {str(e)}"
     
     # Tab 4: Image AI
     with tab4:
         st.markdown("### 🎨 AI Image Analysis")
-        st.info("📸 Upload images for AI-powered analysis and description! (Powered by Gemini 3.1 Pro - FREE)")
-        
-        uploaded_image = st.file_uploader(
-            "📸 Upload Image",
-            type=["png", "jpg", "jpeg", "gif", "bmp"],
-            key="tab4_uploader",
-            help="Upload any image for AI analysis"
-        )
-        
+        st.info("📸 Powered by DeepSeek Vision (Novita AI) - FREE")
+        uploaded_image = st.file_uploader("📸 Upload Image", type=["png", "jpg", "jpeg", "gif", "bmp"], key="tab4_uploader")
         if uploaded_image:
             col1, col2 = st.columns([1, 2])
             with col1:
-                st.image(uploaded_image, width=300, caption="Your Image")
-            
+                st.image(uploaded_image, width=300)
             with col2:
                 if not groq_key:
-                    st.error("⚠️ Please configure Groq API key")
+                    st.error("⚠️ Groq API key required")
                 else:
                     img_base64 = process_uploaded_image(uploaded_image.getvalue())
                     if img_base64:
-                        analysis_prompt = st.text_input(
-                            "What would you like to know about this image?",
-                            placeholder="e.g., Describe this image, Solve the math problem, etc."
-                        )
-                        
-                        if st.button("🔍 Analyze Image (Gemini 3.1 Pro)", use_container_width=True):
+                        analysis_prompt = st.text_input("What would you like to know?", placeholder="e.g., Describe this image, Solve the math problem")
+                        if st.button("🔍 Analyze Image (DeepSeek Vision)", use_container_width=True):
                             with st.chat_message("assistant"):
-                                stream = vision_response_generator(
-                                    img_base64,
-                                    analysis_prompt or "বিশ্লেষণ করে বলুন এই ছবিতে কী আছে",
-                                    groq_key
-                                )
+                                stream = vision_response_generator(img_base64, analysis_prompt or "বিশ্লেষণ করে বলুন এই ছবিতে কী আছে", groq_key)
                                 response = st.write_stream(stream)
-                                
                                 if response:
-                                    st.session_state.messages.append({
-                                        "role": "assistant",
-                                        "content": f"🖼️ Image Analysis: {response}"
-                                    })
+                                    st.session_state.messages.append({"role": "assistant", "content": f"🖼️ Image Analysis: {response}"})
 
-# ============ MAIN APP ============
-
+# ============ MAIN ============
 def main():
     if not st.session_state.logged_in:
         render_auth()
         return
-    
     render_sidebar()
     render_chat_interface()
-    
     st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #888; padding: 1rem;">
-        <p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p>
-        <p style="font-size: 0.8rem;">Powered by Groq AI + Gemini 3.1 Pro (FREE) • thinking: HIGH • Secure • Fast • Intelligent</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div style="text-align:center;color:#888;padding:1rem;"><p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p><p style="font-size:0.8rem;">Powered by Groq AI + DeepSeek Vision (Novita AI) • Secure • Fast • FREE</p></div>""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()

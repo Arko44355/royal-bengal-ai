@@ -7,4 +7,4 @@ Pillow
 pdfplumber
 groq
 duckduckgo-search
-google-generativeai
+openai
