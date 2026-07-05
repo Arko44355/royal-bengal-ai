@@ -15,7 +15,7 @@ import json
 import uuid
 import os
 from datetime import datetime
-import google.generativeai as genai  # ✅ Gemini Vision (FREE)
+import google.generativeai as genai
 
 # 🛡️ Safe imports with fallback
 try:
@@ -346,7 +346,6 @@ def get_api_key():
         return None
 
 def get_gemini_api_key():
-    """Get Gemini API key from secrets"""
     if "GEMINI_API_KEY" in st.secrets:
         return st.secrets["GEMINI_API_KEY"]
     elif "user_gemini_key" in st.session_state and st.session_state.user_gemini_key:
@@ -441,9 +440,9 @@ def safe_econ_stream(prompt, api_key):
     except Exception as e:
         yield f"⚠️ Economics Error: {str(e)}"
 
-# ============ GEMINI PRO VISION (FREE) ============
+# ============ GEMINI 3.1 PRO VISION WITH THINKING_LEVEL="HIGH" ============
 def vision_response_generator(image_base64, user_prompt, api_key):
-    """Gemini Vision - Updated with correct model name"""
+    """Gemini 3.1 Pro Vision - Latest model with thinking_level="high" """
     
     gemini_key = get_gemini_api_key()
     if not gemini_key:
@@ -460,8 +459,8 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         # Configure Gemini
         genai.configure(api_key=gemini_key)
         
-        # ✅ CORRECT MODEL NAME - gemini-1.5-pro
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        # ✅ LATEST MODEL - Gemini 3.1 Pro Preview (February 2026)
+        model = genai.GenerativeModel('gemini-3.1-pro-preview')
         
         # Decode image
         image_data = base64.b64decode(image_base64)
@@ -475,11 +474,16 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         If it's a document, summarize the key points.
         User question: {user_prompt if user_prompt else 'বিশ্লেষণ করে বলুন এই ছবিতে কী আছে।'}"""
         
-        # Generate response
-        response = model.generate_content([prompt, image])
+        # ✅ WITH THINKING_LEVEL="HIGH" - সর্বোচ্চ কোয়ালিটি
+        response = model.generate_content(
+            [prompt, image],
+            generation_config={
+                "thinking_level": "high"  # ⭐ Super intelligent!
+            }
+        )
         
         if response.text:
-            yield f"🤖 **Gemini Vision Analysis (FREE):**\n\n{response.text}"
+            yield f"🤖 **Gemini 3.1 Pro Vision (thinking: HIGH):**\n\n{response.text}"
         else:
             yield "⚠️ Gemini Vision থেকে কোনো উত্তর পাওয়া যায়নি।"
             
@@ -616,7 +620,7 @@ def render_sidebar():
                 st.session_state.api_key_configured = False
             
             st.markdown("---")
-            st.markdown("🟢 **Gemini Vision (100% FREE)**")
+            st.markdown("🟢 **Gemini 3.1 Pro Vision (FREE)**")
             gemini_key = st.text_input(
                 "Gemini API Key",
                 type="password",
@@ -938,7 +942,7 @@ def render_chat_interface():
     # Tab 4: Image AI
     with tab4:
         st.markdown("### 🎨 AI Image Analysis")
-        st.info("📸 Upload images for AI-powered analysis and description! (Powered by Gemini - 100% FREE)")
+        st.info("📸 Upload images for AI-powered analysis and description! (Powered by Gemini 3.1 Pro - FREE)")
         
         uploaded_image = st.file_uploader(
             "📸 Upload Image",
@@ -963,7 +967,7 @@ def render_chat_interface():
                             placeholder="e.g., Describe this image, Solve the math problem, etc."
                         )
                         
-                        if st.button("🔍 Analyze Image with Gemini (FREE)", use_container_width=True):
+                        if st.button("🔍 Analyze Image (Gemini 3.1 Pro)", use_container_width=True):
                             with st.chat_message("assistant"):
                                 stream = vision_response_generator(
                                     img_base64,
@@ -992,7 +996,7 @@ def main():
     st.markdown("""
     <div style="text-align: center; color: #888; padding: 1rem;">
         <p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p>
-        <p style="font-size: 0.8rem;">Powered by Groq AI + Gemini Vision (FREE) • Secure • Fast • Intelligent</p>
+        <p style="font-size: 0.8rem;">Powered by Groq AI + Gemini 3.1 Pro (FREE) • thinking: HIGH • Secure • Fast • Intelligent</p>
     </div>
     """, unsafe_allow_html=True)
 
