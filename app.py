@@ -15,6 +15,7 @@ import json
 import uuid
 import os
 from datetime import datetime
+import docx  # ✅ Word document support
 
 # 🛡️ Safe imports
 try:
@@ -107,6 +108,7 @@ st.markdown("""
     .stProgress > div > div { background: linear-gradient(45deg, #FF6B35, #F7931E) !important; }
     .stSelectbox > div > div { background: rgba(255, 255, 255, 0.05) !important; color: white !important; }
     .stFileUploader { background: rgba(255, 255, 255, 0.03) !important; border: 2px dashed rgba(255, 107, 53, 0.3) !important; border-radius: 15px !important; padding: 2rem !important; }
+    .latex-output { background: #1e1e1e; padding: 1rem; border-radius: 10px; border: 1px solid #FF6B35; }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
     ::-webkit-scrollbar-thumb { background: linear-gradient(45deg, #FF6B35, #F7931E); border-radius: 10px; }
@@ -126,9 +128,6 @@ def init_session_state():
         "current_session_id_tab2": None,
         "current_session_id_tab3": None,
         "renaming_session_id": None,
-        "image_uploaded": False,
-        "uploaded_image": None,
-        "api_key_configured": False,
         "web_search_enabled": True
     }
     for key, value in defaults.items():
@@ -156,18 +155,27 @@ def init_db():
 init_db()
 
 # ============ HELPER FUNCTIONS ============
-def process_uploaded_image(file_bytes):
+
+def extract_text_from_docx(file_bytes):
+    """Extract text from Word document"""
     try:
-        img = Image.open(BytesIO(file_bytes))
-        if img.mode in ("RGBA", "P"):
-            img = img.convert("RGB")
-        img.thumbnail((800, 800), Image.Resampling.LANCZOS)
-        buffered = BytesIO()
-        img.save(buffered, format="JPEG", quality=70, optimize=True)
-        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+        from docx import Document
+        doc = Document(BytesIO(file_bytes))
+        text = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+        return text
     except Exception as e:
-        st.error(f"Image processing error: {str(e)}")
-        return ""
+        return f"Error reading Word document: {str(e)}"
+
+def extract_text_from_pdf(file_bytes):
+    """Extract text from PDF (non-scanned)"""
+    if not PDF_SUPPORT:
+        return "PDF support not available. Install pdfplumber."
+    try:
+        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+            text = "\n".join([p.extract_text() or "" for p in pdf.pages if p.extract_text()])
+        return text
+    except Exception as e:
+        return f"Error reading PDF: {str(e)}"
 
 def perform_web_search(query, max_results=3):
     if not WEB_SEARCH_SUPPORT:
@@ -185,6 +193,130 @@ def perform_web_search(query, max_results=3):
     except Exception as e:
         st.warning(f"Search error: {str(e)}")
         return ""
+
+def get_api_key():
+    if "user_api_key" in st.session_state and st.session_state.user_api_key:
+        return st.session_state.user_api_key
+    elif "GROQ_API_KEY" in st.secrets:
+        return st.secrets["GROQ_API_KEY"]
+    elif "GROQ_API_KEY" in os.environ:
+        return os.environ["GROQ_API_KEY"]
+    else:
+        return None
+
+# ============ AI GENERATORS ============
+
+def safe_text_stream(prompt, api_key):
+    if not GROQ_SUPPORT or not api_key:
+        yield "⚠️ Groq API key needed."
+        return
+    try:
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": """You are Royal Bengal AI, created by Md Mohtasim Billah.
+                Always respond in Bengali script. Be friendly, helpful, and professional.
+                Provide step-by-step solutions with clear explanations.
+                Always output COMPLETE LaTeX code for all mathematical expressions using $$ ... $$ format.
+                After the solution, provide a separate section with the complete LaTeX code that can be copied.
+                Format the LaTeX code section as:
+                
+                ## 📝 সম্পূর্ণ LaTeX কোড (কপি করে PDF বানান)
+                ```latex
+                \\documentclass{article}
+                \\usepackage{amsmath}
+                \\begin{document}
+                ...
+                \\end{document}
+                ```"""},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=4096,
+            stream=True
+        )
+        for chunk in response:
+            if chunk and chunk.choices:
+                content = chunk.choices[0].delta.content
+                if content:
+                    yield content
+    except Exception as e:
+        yield f"⚠️ AI Error: {str(e)}"
+
+def safe_math_stream(prompt, api_key):
+    if not GROQ_SUPPORT or not api_key:
+        yield "⚠️ Groq API key needed."
+        return
+    try:
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": """You are an expert Mathematics professor.
+                Respond in Bengali script. Provide detailed step-by-step solutions.
+                Use proper LaTeX formatting with $$ for equations.
+                Always output COMPLETE LaTeX code at the end.
+                Format the LaTeX code section as:
+                
+                ## 📝 সম্পূর্ণ LaTeX কোড (কপি করে PDF বানান)
+                ```latex
+                \\documentclass{article}
+                \\usepackage{amsmath}
+                \\begin{document}
+                ...
+                \\end{document}
+                ```"""},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
+            max_tokens=4096,
+            stream=True
+        )
+        for chunk in response:
+            if chunk and chunk.choices:
+                content = chunk.choices[0].delta.content
+                if content:
+                    yield content
+    except Exception as e:
+        yield f"⚠️ Math Error: {str(e)}"
+
+def safe_econ_stream(prompt, api_key):
+    if not GROQ_SUPPORT or not api_key:
+        yield "⚠️ Groq API key needed."
+        return
+    try:
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": """You are an Economics professor.
+                Respond in Bengali script. Provide detailed economic analysis.
+                Use LaTeX for formulas.
+                Always output COMPLETE LaTeX code at the end.
+                Format the LaTeX code section as:
+                
+                ## 📝 সম্পূর্ণ LaTeX কোড (কপি করে PDF বানান)
+                ```latex
+                \\documentclass{article}
+                \\usepackage{amsmath}
+                \\begin{document}
+                ...
+                \\end{document}
+                ```"""},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
+            max_tokens=4096,
+            stream=True
+        )
+        for chunk in response:
+            if chunk and chunk.choices:
+                content = chunk.choices[0].delta.content
+                if content:
+                    yield content
+    except Exception as e:
+        yield f"⚠️ Econ Error: {str(e)}"
 
 def save_session(session_id, email, title, messages, tab_name):
     try:
@@ -234,158 +366,6 @@ def rename_session(session_id, new_title):
         st.error(f"Rename error: {str(e)}")
         return False
 
-def get_api_key():
-    if "user_api_key" in st.session_state and st.session_state.user_api_key:
-        return st.session_state.user_api_key
-    elif "GROQ_API_KEY" in st.secrets:
-        return st.secrets["GROQ_API_KEY"]
-    elif "GROQ_API_KEY" in os.environ:
-        return os.environ["GROQ_API_KEY"]
-    else:
-        return None
-
-def get_novita_api_key():
-    if "NOVITA_API_KEY" in st.secrets:
-        return st.secrets["NOVITA_API_KEY"]
-    elif "user_novita_key" in st.session_state and st.session_state.user_novita_key:
-        return st.session_state.user_novita_key
-    else:
-        return None
-
-# ============ AI GENERATORS ============
-def safe_text_stream(prompt, api_key):
-    if not GROQ_SUPPORT or not api_key:
-        yield "⚠️ Groq API key needed."
-        return
-    try:
-        client = Groq(api_key=api_key)
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": """You are Royal Bengal AI. Respond in Bengali. Be friendly and professional. Use $$ LaTeX $$ for math."""},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=2048,
-            stream=True
-        )
-        for chunk in response:
-            if chunk and chunk.choices:
-                content = chunk.choices[0].delta.content
-                if content:
-                    yield content
-    except Exception as e:
-        yield f"⚠️ AI Error: {str(e)}"
-
-def safe_math_stream(prompt, api_key):
-    if not GROQ_SUPPORT or not api_key:
-        yield "⚠️ Groq API key needed."
-        return
-    try:
-        client = Groq(api_key=api_key)
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": """You are a Math professor. Respond in Bengali. Use $$ LaTeX $$."""},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5,
-            max_tokens=2048,
-            stream=True
-        )
-        for chunk in response:
-            if chunk and chunk.choices:
-                content = chunk.choices[0].delta.content
-                if content:
-                    yield content
-    except Exception as e:
-        yield f"⚠️ Math Error: {str(e)}"
-
-def safe_econ_stream(prompt, api_key):
-    if not GROQ_SUPPORT or not api_key:
-        yield "⚠️ Groq API key needed."
-        return
-    try:
-        client = Groq(api_key=api_key)
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": """You are an Economics professor. Respond in Bengali."""},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5,
-            max_tokens=2048,
-            stream=True
-        )
-        for chunk in response:
-            if chunk and chunk.choices:
-                content = chunk.choices[0].delta.content
-                if content:
-                    yield content
-    except Exception as e:
-        yield f"⚠️ Econ Error: {str(e)}"
-
-# ============ NOVITA AI VISION (LAPTOP FRIENDLY) ============
-def vision_response_generator(image_base64, user_prompt, api_key):
-    """Novita AI - DeepSeek Vision (Laptop-friendly)"""
-    
-    novita_key = get_novita_api_key()
-    if not novita_key:
-        yield "⚠️ **Novita AI API Key পাওয়া যায়নি!**"
-        yield "\n\n📢 novita.ai থেকে ফ্রি API Key নিন!"
-        yield "\n🔑 নতুন ইউজার পায় $0.5 ফ্রি ক্রেডিট!"
-        return
-    
-    if not image_base64:
-        yield "⚠️ No image found. Please upload an image first."
-        return
-    
-    try:
-        from openai import OpenAI
-        
-        client = OpenAI(
-            base_url="https://api.novita.ai/openai",
-            api_key=novita_key,
-            timeout=60
-        )
-        
-        response = client.chat.completions.create(
-            model="deepseek/deepseek-ocr-2",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"""You are Royal Bengal AI Machine. 
-                            Analyze this image carefully and respond in Bengali script.
-                            Provide a detailed, friendly, and helpful explanation.
-                            If it's a math problem, solve it step by step with LaTeX.
-                            If it's a document, summarize the key points.
-                            User question: {user_prompt if user_prompt else 'বিশ্লেষণ করে বলুন এই ছবিতে কী আছে।'}"""
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{image_base64}"
-                            }
-                        }
-                    ]
-                }
-            ],
-            max_tokens=1024,
-            temperature=0.7
-        )
-        
-        if response.choices and response.choices[0].message.content:
-            yield f"🤖 **DeepSeek Vision (Novita AI):**\n\n{response.choices[0].message.content}"
-        else:
-            yield "⚠️ Vision থেকে কোনো উত্তর পাওয়া যায়নি।"
-            
-    except Exception as e:
-        yield f"⚠️ DeepSeek Vision Error: {str(e)}"
-        yield "\n\n💡 আপনি কি ছবিটির বর্ণনা লিখে বলতে পারবেন? আমি টেক্সট আকারে সাহায্য করতে পারব!"
-
 def try_execute_graph(full_response):
     try:
         if "```python" in full_response:
@@ -405,6 +385,7 @@ def try_execute_graph(full_response):
         pass
 
 # ============ UI COMPONENTS ============
+
 def render_auth():
     st.markdown('<h1 class="main-header">🐅 Royal Bengal AI Machine</h1>', unsafe_allow_html=True)
     st.markdown("### 🔐 Secure Access Panel")
@@ -466,7 +447,6 @@ def render_sidebar():
         st.markdown("---")
         
         with st.expander("🔑 API Configuration", expanded=True):
-            # Groq API
             api_key = st.text_input("Groq API Key", type="password", placeholder="Enter Groq API key...")
             if api_key:
                 st.session_state.user_api_key = api_key
@@ -475,18 +455,6 @@ def render_sidebar():
                 st.success("✅ Groq API Key found in secrets")
             else:
                 st.warning("⚠️ Please add Groq API key")
-            
-            st.markdown("---")
-            # Novita AI (Vision)
-            st.markdown("🟢 **Novita AI (DeepSeek Vision) - FREE**")
-            novita_key = st.text_input("Novita API Key", type="password", placeholder="Enter Novita API key...", help="Get from novita.ai")
-            if novita_key:
-                st.session_state.user_novita_key = novita_key
-                st.success("✅ Novita API Key configured!")
-            elif get_novita_api_key():
-                st.success("✅ Novita API Key found in secrets")
-            else:
-                st.warning("⚠️ Novita key needed for image analysis")
         
         st.markdown("---")
         if WEB_SEARCH_SUPPORT:
@@ -559,37 +527,51 @@ def render_chat_interface():
     st.markdown(f"""<div style="text-align:center;padding:0.5rem;background:rgba(255,255,255,0.05);border-radius:10px;margin-bottom:1rem;">👋 Welcome, {st.session_state.user_profile.get('name', 'User')}! <span style="background:#4caf50;color:white;padding:0.2rem 0.8rem;border-radius:20px;font-size:0.8rem;">● Online</span></div>""", unsafe_allow_html=True)
     
     groq_key = get_api_key()
-    novita_key = get_novita_api_key()
-    
     if not groq_key:
-        st.warning("⚠️ Groq API key needed for text/math/econ")
-    if not novita_key:
-        st.info("💡 Novita API key needed for image analysis (FREE)")
+        st.warning("⚠️ Groq API key needed for AI features")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["💬 AI Assistant", "📊 Math Solver", "📈 Economics", "🎨 Image AI"])
+    tab1, tab2, tab3 = st.tabs(["💬 AI Assistant", "📊 Math Solver", "📈 Economics"])
     
     # Tab 1: AI Assistant
     with tab1:
         st.markdown("### 💬 AI Assistant with Document Support")
-        uploaded_file = st.file_uploader("📎 Upload PDF or Image", type=["pdf", "txt", "png", "jpg", "jpeg"], key="tab1_uploader")
+        st.info("📄 Upload PDF (non-scanned) or Word document to get solutions with LaTeX code")
+        
+        uploaded_file = st.file_uploader(
+            "📎 Upload Document",
+            type=["pdf", "txt", "docx"],
+            key="tab1_uploader",
+            help="Upload PDF, Word, or Text documents"
+        )
+        
         extracted_text = ""
-        image_base64 = ""
         
         if uploaded_file:
             file_bytes = uploaded_file.getvalue()
             file_name = uploaded_file.name.lower()
-            if file_name.endswith(".pdf") and PDF_SUPPORT:
-                try:
-                    with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-                        extracted_text = "\n".join([p.extract_text() or "" for p in pdf.pages])
-                    st.success(f"✅ PDF processed: {len(extracted_text)} characters")
-                except Exception as e:
-                    st.error(f"PDF error: {str(e)}")
-            elif file_name.split('.')[-1] in ["png", "jpg", "jpeg"]:
-                st.image(file_bytes, width=300)
-                image_base64 = process_uploaded_image(file_bytes)
-                if image_base64:
-                    st.success("✅ Image processed!")
+            
+            with st.spinner("📖 Reading document..."):
+                if file_name.endswith(".pdf"):
+                    extracted_text = extract_text_from_pdf(file_bytes)
+                    if extracted_text:
+                        st.success(f"✅ PDF processed: {len(extracted_text)} characters")
+                        with st.expander("📄 View extracted text"):
+                            st.text(extracted_text[:2000] + "..." if len(extracted_text) > 2000 else extracted_text)
+                elif file_name.endswith(".docx"):
+                    try:
+                        extracted_text = extract_text_from_docx(file_bytes)
+                        if extracted_text:
+                            st.success(f"✅ Word document processed: {len(extracted_text)} characters")
+                            with st.expander("📄 View extracted text"):
+                                st.text(extracted_text[:2000] + "..." if len(extracted_text) > 2000 else extracted_text)
+                    except Exception as e:
+                        st.error(f"Word document error: {str(e)}")
+                        st.info("💡 Make sure python-docx is installed: `pip install python-docx`")
+                elif file_name.endswith(".txt"):
+                    extracted_text = file_bytes.decode('utf-8')
+                    st.success(f"✅ Text file loaded: {len(extracted_text)} characters")
+                    with st.expander("📄 View text"):
+                        st.text(extracted_text[:2000] + "..." if len(extracted_text) > 2000 else extracted_text)
         
         for msg in st.session_state.messages:
             with st.chat_message(msg["role"]):
@@ -599,6 +581,7 @@ def render_chat_interface():
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
+            
             with st.chat_message("assistant"):
                 if not groq_key:
                     st.error("⚠️ Groq API key required")
@@ -608,17 +591,26 @@ def render_chat_interface():
                             context = ""
                             if extracted_text:
                                 context += f"📄 Document context:\n{extracted_text}\n\n"
+                            
                             if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
                                     context += search_result + "\n\n"
-                            final_prompt = f"{context}User question: {prompt}"
-                            if image_base64:
-                                stream = vision_response_generator(image_base64, prompt, groq_key)
-                            else:
-                                stream = safe_text_stream(final_prompt, groq_key)
+                            
+                            final_prompt = f"{context}User question: {prompt}\n\nPlease provide complete LaTeX code at the end."
+                            
+                            stream = safe_text_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
+                            
+                            # Try to render graphs
                             try_execute_graph(full_response)
+                            
+                            # Extract LaTeX code if present
+                            if "\\documentclass" in full_response:
+                                st.markdown("---")
+                                st.markdown("### 📝 LaTeX Code to Copy")
+                                st.code(full_response, language="latex")
+                            
                             session_id = st.session_state.current_session_id_tab1 or str(uuid.uuid4())
                             st.session_state.current_session_id_tab1 = session_id
                             st.session_state.messages.append({"role": "assistant", "content": full_response})
@@ -629,13 +621,17 @@ def render_chat_interface():
     # Tab 2: Math Solver
     with tab2:
         st.markdown("### 📊 Advanced Math Solver")
+        st.info("📝 Solve math problems with step-by-step LaTeX solutions")
+        
         for msg in st.session_state.math_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
+        
         if prompt := st.chat_input("গাণিতিক সমস্যা লিখুন...", key="t2_chat"):
             st.session_state.math_messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
+            
             with st.chat_message("assistant"):
                 if not groq_key:
                     st.error("⚠️ Groq API key required")
@@ -647,10 +643,20 @@ def render_chat_interface():
                                 search_result = perform_web_search(prompt)
                                 if search_result:
                                     context += search_result + "\n\n"
-                            final_prompt = f"{context}Math problem: {prompt}"
+                            
+                            final_prompt = f"{context}Math problem: {prompt}\n\nPlease provide complete LaTeX code at the end."
                             stream = safe_math_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
+                            
+                            # Try to render graphs
                             try_execute_graph(full_response)
+                            
+                            # Extract LaTeX code if present
+                            if "\\documentclass" in full_response:
+                                st.markdown("---")
+                                st.markdown("### 📝 LaTeX Code to Copy")
+                                st.code(full_response, language="latex")
+                            
                             session_id = st.session_state.current_session_id_tab2 or str(uuid.uuid4())
                             st.session_state.current_session_id_tab2 = session_id
                             st.session_state.math_messages.append({"role": "assistant", "content": full_response})
@@ -661,13 +667,17 @@ def render_chat_interface():
     # Tab 3: Economics
     with tab3:
         st.markdown("### 📈 Economics Analysis")
+        st.info("📊 Economic analysis with LaTeX formulas and graphs")
+        
         for msg in st.session_state.econ_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
+        
         if prompt := st.chat_input("অর্থনীতির প্রশ্ন লিখুন...", key="t3_chat"):
             st.session_state.econ_messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
+            
             with st.chat_message("assistant"):
                 if not groq_key:
                     st.error("⚠️ Groq API key required")
@@ -679,39 +689,26 @@ def render_chat_interface():
                                 search_result = perform_web_search(prompt)
                                 if search_result:
                                     context += search_result + "\n\n"
-                            final_prompt = f"{context}Economics question: {prompt}"
+                            
+                            final_prompt = f"{context}Economics question: {prompt}\n\nPlease provide complete LaTeX code at the end."
                             stream = safe_econ_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
+                            
+                            # Try to render graphs
                             try_execute_graph(full_response)
+                            
+                            # Extract LaTeX code if present
+                            if "\\documentclass" in full_response:
+                                st.markdown("---")
+                                st.markdown("### 📝 LaTeX Code to Copy")
+                                st.code(full_response, language="latex")
+                            
                             session_id = st.session_state.current_session_id_tab3 or str(uuid.uuid4())
                             st.session_state.current_session_id_tab3 = session_id
                             st.session_state.econ_messages.append({"role": "assistant", "content": full_response})
                             save_session(session_id, st.session_state.user_profile['email'], prompt[:50], st.session_state.econ_messages, "tab3")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
-    
-    # Tab 4: Image AI
-    with tab4:
-        st.markdown("### 🎨 AI Image Analysis")
-        st.info("📸 Powered by DeepSeek Vision (Novita AI) - FREE")
-        uploaded_image = st.file_uploader("📸 Upload Image", type=["png", "jpg", "jpeg", "gif", "bmp"], key="tab4_uploader")
-        if uploaded_image:
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.image(uploaded_image, width=300)
-            with col2:
-                if not groq_key:
-                    st.error("⚠️ Groq API key required")
-                else:
-                    img_base64 = process_uploaded_image(uploaded_image.getvalue())
-                    if img_base64:
-                        analysis_prompt = st.text_input("What would you like to know?", placeholder="e.g., Describe this image, Solve the math problem")
-                        if st.button("🔍 Analyze Image (DeepSeek Vision)", use_container_width=True):
-                            with st.chat_message("assistant"):
-                                stream = vision_response_generator(img_base64, analysis_prompt or "বিশ্লেষণ করে বলুন এই ছবিতে কী আছে", groq_key)
-                                response = st.write_stream(stream)
-                                if response:
-                                    st.session_state.messages.append({"role": "assistant", "content": f"🖼️ Image Analysis: {response}"})
 
 # ============ MAIN ============
 def main():
@@ -721,7 +718,7 @@ def main():
     render_sidebar()
     render_chat_interface()
     st.markdown("---")
-    st.markdown("""<div style="text-align:center;color:#888;padding:1rem;"><p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p><p style="font-size:0.8rem;">Powered by Groq AI + DeepSeek Vision (Novita AI) • Secure • Fast • FREE</p></div>""", unsafe_allow_html=True)
+    st.markdown("""<div style="text-align:center;color:#888;padding:1rem;"><p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p><p style="font-size:0.8rem;">Powered by Groq AI • PDF/Word Support • LaTeX Export • Secure • Fast</p></div>""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
