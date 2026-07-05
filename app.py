@@ -4,17 +4,16 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 import matplotlib
-matplotlib.use('Agg') # লিনাক্স ক্লাউড সার্ভারের জন্য নন-ইন্টারেক্টিভ ব্যাকএন্ড সেটআপ
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from PIL import Image
 from io import BytesIO
-import os
 import sqlite3
 import base64
 import json
 import uuid
 
-# 🛡️ ইমপোর্ট গার্ডরেল যেন অ্যাপ কোনো লাইব্রেরি মিসিং হলেও ক্র্যাশ না করে
+# 🛡️ Library Imports with Safeguards
 try:
     import pdfplumber
     PDF_SUPPORT = True
@@ -33,10 +32,10 @@ try:
 except ImportError:
     WEB_SEARCH_SUPPORT = False
 
-# ১. পেজ কনফিগারেশন
+# 1. Page Configuration
 st.set_page_config(page_title="Royal Bengal AI Machine", page_icon="🐅", layout="wide")
 
-# ২. ডেটাবেস সেটআপ
+# 2. Database Management
 def get_db_connection():
     return sqlite3.connect("users.db", timeout=10, check_same_thread=False)
 
@@ -45,19 +44,13 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            email TEXT PRIMARY KEY,
-            name TEXT,
-            password TEXT
+            email TEXT PRIMARY KEY, name TEXT, password TEXT
         )
     ''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS chat_sessions (
-            session_id TEXT PRIMARY KEY,
-            email TEXT,
-            title TEXT,
-            messages_json TEXT,
-            tab_name TEXT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            session_id TEXT PRIMARY KEY, email TEXT, title TEXT, 
+            messages_json TEXT, tab_name TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     conn.commit()
@@ -65,7 +58,7 @@ def init_db():
 
 init_db()
 
-# ৩. সেশন স্টেট ইনিশিয়েলাইজেশন
+# 3. Session State Initialization
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_profile" not in st.session_state:
@@ -77,7 +70,7 @@ if "math_messages" not in st.session_state:
 if "econ_messages" not in st.session_state:
     st.session_state.econ_messages = []
 
-# চ্যাট সেশন আইডি ট্র্যাকিং স্টেট
+# Session Tracking
 if "current_session_id_tab1" not in st.session_state:
     st.session_state.current_session_id_tab1 = None
 if "current_session_id_tab2" not in st.session_state:
@@ -87,30 +80,25 @@ if "current_session_id_tab3" not in st.session_state:
 if "renaming_session_id" not in st.session_state:
     st.session_state.renaming_session_id = None
 
-# ৪. সাইডবার ইন্টারফেস এবং এপিআই কী রিট্রিভ্যাল
+# 4. Sidebar Controller Panel
 with st.sidebar:
     st.header("🎛️ Control Panel")
     
-    # 🔑 কাস্টম এপিআই কী ইনপুট বক্স
     st.subheader("🔑 API Key Controller")
-    user_key = st.text_input("Groq API Key (Optional)", type="password", help="গিটহাব যদি আপনার কী ব্লক করে দেয়, তবে সরাসরি এখানে নতুন কী পেস্ট করে দিন।")
+    user_key = st.text_input("Groq API Key (Optional)", type="password")
     
-    # এপিআই কী নির্ধারণ করা হচ্ছে
     if user_key.strip():
         GROQ_API_KEY = user_key.strip()
     elif "GROQ_API_KEY" in st.secrets:
         GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
     else:
-        prefix = "gsk_"
-        main_part = "sbUIEG6vVeKinlQGS6D1WGdyb3FYgLToMoyEyCmbg3Y17WBzyW4z"
-        GROQ_API_KEY = f"{prefix}{main_part}"
+        GROQ_API_KEY = "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"
 
-    voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট অন করুন (Windows Only)")
+    voice_on = st.checkbox("🎙️ ভয়েস অ্যাসিস্ট্যান্ট (Windows)")
     
     if WEB_SEARCH_SUPPORT:
-        web_search_enabled = st.checkbox("🌐 গুগল ও ইন্টারনেট লাইভ সার্চ অন করুন", value=True)
+        web_search_enabled = st.checkbox("🌐 লাইভ সার্চ অন করুন", value=True)
     else:
-        st.warning("⚠️ লাইভ সার্চ এই মুহূর্তে নিষ্ক্রিয় আছে বন্ধু।")
         web_search_enabled = False
     
     if st.button("Logout 🚪", use_container_width=True):
@@ -124,26 +112,23 @@ with st.sidebar:
         st.rerun()
         
     st.markdown("---")
-    st.subheader("📱 মোবাইল কুইক কন্ট্রোল")
-    
-    if st.button("🔄 অ্যাপ রিফ্রেশ করুন (Rerun)", use_container_width=True):
+    if st.button("🔄 Quick Rerun", use_container_width=True):
         st.rerun()
-        
-    if st.button("🧹 ক্যাশ সাফ করুন (Clear Cache)", use_container_width=True):
+    if st.button("🧹 Clear Cache", use_container_width=True):
         st.cache_data.clear()
         st.cache_resource.clear()
-        st.toast("ক্যাশ সফলভাবে সাফ করা হয়েছে ভাই!", icon="🗑️")
+        st.toast("ক্যাশ সাফ করা হয়েছে।")
         st.rerun()
 
-# ৫. Groq Client গ্লোবালি ইনিশিয়েলাইজ করা হচ্ছে (সাইডবারের বাইরে যেন ক্র্যাশ না করে)
+# 5. Global Client Init
 client = None
 if GROQ_SUPPORT and GROQ_API_KEY:
     try:
         client = Groq(api_key=GROQ_API_KEY)
     except Exception as e:
-        st.sidebar.error(f"Groq Client ইনিশিয়েলাইজ করতে সমস্যা: {e}")
+        st.sidebar.error(f"Client Init Error: {e}")
 
-# 📸 ইমেজ লাইটওয়েট কম্প্রেসর (রেট লিমিট এড়াতে সাইজ অত্যন্ত কমানো হলো)
+# Image Compression Utility
 def process_uploaded_image(file_bytes):
     try:
         img = Image.open(BytesIO(file_bytes))
@@ -153,11 +138,10 @@ def process_uploaded_image(file_bytes):
         buffered = BytesIO()
         img.save(buffered, format="JPEG", quality=60)
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
-    except Exception as e:
-        st.error(f"⚠️ ইমেজ প্রসেস করতে সমস্যা হয়েছে: {e}")
+    except:
         return ""
 
-# 🌐 সেফ লাইভ ওয়েব সার্চ করার ফাংশন
+# Live Web Search
 def perform_web_search(query, max_results=5):
     if not WEB_SEARCH_SUPPORT:
         return ""
@@ -166,41 +150,36 @@ def perform_web_search(query, max_results=5):
             results = list(ddgs.text(query, max_results=max_results))
         if not results:
             return ""
-        search_context = "\n🌐 [লাইভ ইন্টারনেট অনুসন্ধান ফলাফল]:\n"
+        context = "\n🌐 [লাইভ সার্চ ফলাফল]:\n"
         for i, r in enumerate(results, 1):
-            search_context += f"উৎস [{i}]: {r.get('title')}\nতথ্যসার: {r.get('body')}\n\n"
-        return search_context
-    except Exception as e:
+            context += f"উৎস [{i}]: {r.get('title')}\nতথ্য: {r.get('body')}\n\n"
+        return context
+    except:
         return ""
 
-# 🗄️ চ্যাট হিস্ট্রি ডাটাবেস ফাংশনসমূহ
+# Database CRUD Operations for Session History
 def save_session(session_id, email, title, messages, tab_name):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        messages_json = json.dumps(messages)
         cursor.execute('''
             INSERT OR REPLACE INTO chat_sessions (session_id, email, title, messages_json, tab_name, updated_at)
             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ''', (session_id, email, title, messages_json, tab_name))
+        ''', (session_id, email, title, json.dumps(messages), tab_name))
         conn.commit()
         conn.close()
-    except Exception as e:
+    except:
         pass
 
 def get_sessions(email, tab_name):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT session_id, title, messages_json FROM chat_sessions 
-            WHERE email = ? AND tab_name = ? 
-            ORDER BY updated_at DESC
-        ''', (email, tab_name))
+        cursor.execute('SELECT session_id, title, messages_json FROM chat_sessions WHERE email = ? AND tab_name = ? ORDER BY updated_at DESC', (email, tab_name))
         rows = cursor.fetchall()
         conn.close()
         return rows
-    except Exception as e:
+    except:
         return []
 
 def delete_session(session_id):
@@ -210,7 +189,7 @@ def delete_session(session_id):
         cursor.execute('DELETE FROM chat_sessions WHERE session_id = ?', (session_id,))
         conn.commit()
         conn.close()
-    except Exception as e:
+    except:
         pass
 
 def rename_session(session_id, new_title):
@@ -220,24 +199,19 @@ def rename_session(session_id, new_title):
         cursor.execute('UPDATE chat_sessions SET title = ? WHERE session_id = ?', (new_title, session_id))
         conn.commit()
         conn.close()
-    except Exception as e:
+    except:
         pass
 
-
-# লগইন এবং সাইনআপ ইন্টারফেস
+# Authentication Middleware Interface
 if not st.session_state.logged_in:
-    st.title("🔐 Royal Bengal AI - Secure Access Panel")
-    st.write("স্বাগতম! অনুগ্রহ করে আপনার অ্যাকাউন্ট দিয়ে লগইন করুন অথবা একটি নতুন অ্যাকাউন্ট তৈরি করুন।")
-    
-    auth_tab1, auth_tab2 = st.tabs(["🔑 অ্যাকাউন্টে লগইন করুন", "📝 নতুন অ্যাকাউন্ট তৈরি করুন"])
+    st.title("🔐 Secure Access Panel")
+    auth_tab1, auth_tab2 = st.tabs(["🔑 Login", "📝 Sign Up"])
     
     with auth_tab2:
-        st.subheader("নতুন অ্যাকাউন্ট তৈরি করুন")
-        reg_name = st.text_input("আপনার সম্পূর্ণ নাম (Full Name)", key="reg_name", placeholder="যেমন: Md Mohtasim Billah")
-        reg_email = st.text_input("গুগল ইমেইল (Google Email)", key="reg_email", placeholder="যেমন: mohtasim@gmail.com")
-        reg_pass = st.text_input("পাসওয়ার্ড (Password)", type="password", key="reg_pass", placeholder="একটি স্ট্রং পাসওয়ার্ড দিন")
-        
-        if st.button("Sign Up & Create Account 🚀"):
+        reg_name = st.text_input("Name", key="reg_name")
+        reg_email = st.text_input("Email", key="reg_email")
+        reg_pass = st.text_input("Password", type="password", key="reg_pass")
+        if st.button("Create Account"):
             if reg_email and reg_pass:
                 try:
                     conn = get_db_connection()
@@ -245,450 +219,197 @@ if not st.session_state.logged_in:
                     cursor.execute("INSERT INTO users (email, name, password) VALUES (?, ?, ?)", (reg_email.strip(), reg_name.strip(), reg_pass.strip()))
                     conn.commit()
                     conn.close()
-                    st.success("🎉 অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে! পাশের ট্যাবে গিয়ে লগইন করুন।")
+                    st.success("অ্যাকাউন্ট তৈরি হয়েছে! লগইন করুন।")
                 except sqlite3.IntegrityError:
-                    st.error("⚠️ এই ইমেইল দিয়ে অলরেডি অ্যাকাউন্ট তৈরি করা আছে!")
-                except Exception as e:
-                    st.error(f"ডাটাবেস এরর: {e}")
+                    st.error("ইমেইলটি ইতিমধ্যে নিবন্ধিত।")
             else:
-                st.error("⚠️ দয়া করে ইমেইল এবং পাসওয়ার্ড সঠিকভাবে পূরণ করুন।")
+                st.error("সব ঘর পূরণ করুন।")
                 
     with auth_tab1:
-        st.subheader("অ্যাকাউন্টে লগইন করুন")
-        login_email = st.text_input("আপনার গুগল ইমেইল (Google Email)", key="login_email", placeholder="যেমন: mohtasim@gmail.com")
-        login_pass = st.text_input("পাসওয়ার্ড (Password)", type="password", key="login_pass", placeholder="আপনার পাসওয়ার্ডটি লিখুন")
-        
-        if st.button("Login & Unlock Machine 🔓"):
-            try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute("SELECT name, password FROM users WHERE email = ?", (login_email.strip(),))
-                user = cursor.fetchone()
-                conn.close()
-                
-                if user and login_pass.strip() == user[1]:
-                    st.session_state.logged_in = True
-                    st.session_state.user_profile = {"name": user[0], "email": login_email.strip()}
-                    st.toast("🔓 Access Granted! Welcome back.", icon="🐅")
-                    st.rerun()
-                else:
-                    st.error("❌ ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।")
-            except Exception as e:
-                st.error(f"লগইন করতে সমস্যা হয়েছে: {e}")
+        login_email = st.text_input("Email", key="login_email")
+        login_pass = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Unlock Dashboard"):
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT name, password FROM users WHERE email = ?", (login_email.strip(),))
+            user = cursor.fetchone()
+            conn.close()
+            if user and login_pass.strip() == user[1]:
+                st.session_state.logged_in = True
+                st.session_state.user_profile = {"name": user[0], "email": login_email.strip()}
+                st.rerun()
+            else:
+                st.error("ভুল ইমেইল বা পাসওয়ার্ড।")
     st.stop()
 
-# --- মেইন অ্যাপ্লিকেশন ইন্টারফেস ---
-st.title(f"🐅 Royal Bengal AI Machine - Welcome {st.session_state.user_profile['name']}!")
+# --- Main Application Interface ---
+st.title(f"🐅 Royal Bengal AI Machine — Active Session: {st.session_state.user_profile['name']}")
 
-# সাইডবার হিস্ট্রি কন্ট্রোল সেকশন (লগইন সম্পূর্ণ হওয়ার পর সাইডবারের নিচে লোড হবে)
+# Render History Items inside Sidebar Safely
 with st.sidebar:
     st.markdown("---")
-    st.subheader("📁 আমার সংরক্ষিত চ্যাট হিস্ট্রি")
+    st.subheader("📁 সংরক্ষিত চ্যাট হিস্ট্রি")
     
-    # ক্যাটাগরি ১: AI Assistant চ্যাট হিস্ট্রি
-    with st.sidebar.expander("💬 AI Assistant চ্যাটসমূহ", expanded=False):
-        if st.button("➕ নতুন AI চ্যাট শুরু করুন", key="new_chat_t1", use_container_width=True):
-            st.session_state.messages = []
-            st.session_state.current_session_id_tab1 = None
-            st.rerun()
-            
-        sessions_t1 = get_sessions(st.session_state.user_profile['email'], "tab1")
-        for s_id, title, msg_json in sessions_t1:
-            col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
-            is_active = (s_id == st.session_state.current_session_id_tab1)
-            btn_label = f"📍 {title}" if is_active else title
-            
-            with col1:
-                if st.button(btn_label, key=f"load_t1_{s_id}", use_container_width=True):
-                    st.session_state.messages = json.loads(msg_json)
-                    st.session_state.current_session_id_tab1 = s_id
-                    st.rerun()
-            with col2:
-                if st.button("✏️", key=f"ren_btn_t1_{s_id}"):
-                    st.session_state.renaming_session_id = s_id
-                    st.rerun()
-            with col3:
-                if st.button("🗑️", key=f"del_t1_{s_id}"):
-                    delete_session(s_id)
-                    if is_active:
-                        st.session_state.messages = []
-                        st.session_state.current_session_id_tab1 = None
-                    st.rerun()
-                    
-            if st.session_state.renaming_session_id == s_id:
-                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_t1_{s_id}")
-                col_save, col_cancel = st.columns(2)
-                with col_save:
-                    if st.button("সংরক্ষণ", key=f"save_ren_t1_{s_id}", use_container_width=True):
-                        if new_name.strip():
-                            rename_session(s_id, new_name.strip())
-                        st.session_state.renaming_session_id = None
+    for t_idx, (t_name, m_key, s_key) in enumerate([("tab1", "messages", "current_session_id_tab1"), ("tab2", "math_messages", "current_session_id_tab2"), ("tab3", "econ_messages", "current_session_id_tab3")], 1):
+        with st.sidebar.expander(f"Category {t_idx} History", expanded=False):
+            if st.button("➕ New Chat Instance", key=f"new_{t_name}"):
+                st.session_state[m_key] = []
+                st.session_state[s_key] = None
+                st.rerun()
+            for s_id, title, msg_json in get_sessions(st.session_state.user_profile['email'], t_name):
+                col1, col2 = st.columns([0.8, 0.2])
+                with col1:
+                    if st.button(title, key=f"load_{t_name}_{s_id}", use_container_width=True):
+                        st.session_state[m_key] = json.loads(msg_json)
+                        st.session_state[s_key] = s_id
                         st.rerun()
-                with col_cancel:
-                    if st.button("বাতিল", key=f"cancel_ren_t1_{s_id}", use_container_width=True):
-                        st.session_state.renaming_session_id = None
+                with col2:
+                    if st.button("🗑️", key=f"del_{t_name}_{s_id}"):
+                        delete_session(s_id)
+                        if st.session_state[s_key] == s_id:
+                            st.session_state[m_key] = []
+                            st.session_state[s_key] = None
                         st.rerun()
 
-    # ক্যাটাগরি ২: Math Wave Solver হিস্ট্রি
-    with st.sidebar.expander("📊 Math Wave চ্যাটসমূহ", expanded=False):
-        if st.button("➕ নতুন Math চ্যাট শুরু করুন", key="new_chat_t2", use_container_width=True):
-            st.session_state.math_messages = []
-            st.session_state.current_session_id_tab2 = None
-            st.rerun()
-            
-        sessions_t2 = get_sessions(st.session_state.user_profile['email'], "tab2")
-        for s_id, title, msg_json in sessions_t2:
-            col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
-            is_active = (s_id == st.session_state.current_session_id_tab2)
-            btn_label = f"📍 {title}" if is_active else title
-            
-            with col1:
-                if st.button(btn_label, key=f"load_t2_{s_id}", use_container_width=True):
-                    st.session_state.math_messages = json.loads(msg_json)
-                    st.session_state.current_session_id_tab2 = s_id
-                    st.rerun()
-            with col2:
-                if st.button("✏️", key=f"ren_btn_t2_{s_id}"):
-                    st.session_state.renaming_session_id = s_id
-                    st.rerun()
-            with col3:
-                if st.button("🗑️", key=f"del_t2_{s_id}"):
-                    delete_session(s_id)
-                    if is_active:
-                        st.session_state.math_messages = []
-                        st.session_state.current_session_id_tab2 = None
-                    st.rerun()
-                    
-            if st.session_state.renaming_session_id == s_id:
-                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_t2_{s_id}")
-                col_save, col_cancel = st.columns(2)
-                with col_save:
-                    if st.button("সংরক্ষণ", key=f"save_ren_t2_{s_id}", use_container_width=True):
-                        if new_name.strip():
-                            rename_session(s_id, new_name.strip())
-                        st.session_state.renaming_session_id = None
-                        st.rerun()
-                with col_cancel:
-                    if st.button("বাতিল", key=f"cancel_ren_t2_{s_id}", use_container_width=True):
-                        st.session_state.renaming_session_id = None
-                        st.rerun()
+# Create App Navigation Tabs
+tab1, tab2, tab3, tab4 = st.tabs(["💬 AI Assistant & Docs", "📊 Math Wave", "📈 Economics Demand", "🎨 AI Image"])
 
-    # ক্যাটাগরি ৩: Economics Demand হিস্ট্রি
-    with st.sidebar.expander("📈 Economics চ্যাটসমূহ", expanded=False):
-        if st.button("➕ নতুন Economics চ্যাট শুরু করুন", key="new_chat_t3", use_container_width=True):
-            st.session_state.econ_messages = []
-            st.session_state.current_session_id_tab3 = None
-            st.rerun()
-            
-        sessions_t3 = get_sessions(st.session_state.user_profile['email'], "tab3")
-        for s_id, title, msg_json in sessions_t3:
-            col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
-            is_active = (s_id == st.session_state.current_session_id_tab3)
-            btn_label = f"📍 {title}" if is_active else title
-            
-            with col1:
-                if st.button(btn_label, key=f"load_t3_{s_id}", use_container_width=True):
-                    st.session_state.econ_messages = json.loads(msg_json)
-                    st.session_state.current_session_id_tab3 = s_id
-                    st.rerun()
-            with col2:
-                if st.button("✏️", key=f"ren_btn_t3_{s_id}"):
-                    st.session_state.renaming_session_id = s_id
-                    st.rerun()
-            with col3:
-                if st.button("🗑️", key=f"del_t3_{s_id}"):
-                    delete_session(s_id)
-                    if is_active:
-                        st.session_state.econ_messages = []
-                        st.session_state.current_session_id_tab3 = None
-                    st.rerun()
-                    
-            if st.session_state.renaming_session_id == s_id:
-                new_name = st.text_input("নতুন নাম দিন:", value=title, key=f"new_name_val_t3_{s_id}")
-                col_save, col_cancel = st.columns(2)
-                with col_save:
-                    if st.button("সংরক্ষণ", key=f"save_ren_t3_{s_id}", use_container_width=True):
-                        if new_name.strip():
-                            rename_session(s_id, new_name.strip())
-                        st.session_state.renaming_session_id = None
-                        st.rerun()
-                with col_cancel:
-                    if st.button("বাতিল", key=f"cancel_ren_t3_{s_id}", use_container_width=True):
-                        st.session_state.renaming_session_id = None
-                        st.rerun()
-
-
-# প্রধান ফিচার ট্যাব সমূহ
-tab1, tab2, tab3, tab4 = st.tabs(["💬 AI Assistant & Upload Solver", "📊 Math Wave", "📈 Economics Demand", "🎨 AI Image Generator"])
-
-# helper ফাংশন গ্রাফ এক্সিকিউট করার জন্য
-def try_execute_graph(full_response):
-    if "fig =" in full_response or "go.Figure" in full_response or "plt." in full_response:
+def run_embedded_graph(full_response):
+    if any(k in full_response for k in ["fig =", "go.Figure", "plt."]):
         try:
-            if "```python" in full_response:
-                code_block = full_response.split("```python")[1].split("```")[0]
-            elif "```" in full_response:
-                code_block = full_response.split("```")[1].split("```")[0]
-            else:
-                code_block = full_response
-            
-            code_block = code_block.replace("fig.show()", "")
-            code_block = code_block.replace("plt.show()", "")
-
-            exec_env = {}
-            exec_env.update(globals())
-            exec_env.update({
-                "np": np, "go": go, "px": px, "plt": plt, "st": st
-            })
-            exec(code_block, exec_env)
-            
-            if "fig" in exec_env:
-                st.plotly_chart(exec_env["fig"], use_container_width=True)
-            elif "plt" in exec_env and plt.get_fignums():
+            code_block = full_response.split("```python")[1].split("```")[0] if "```python" in full_response else (full_response.split("```")[1].split("```")[0] if "```" in full_response else full_response)
+            code_block = code_block.replace("fig.show()", "").replace("plt.show()", "")
+            env = {}
+            env.update(globals())
+            env.update({"np": np, "go": go, "px": px, "plt": plt, "st": st})
+            exec(code_block, env)
+            if "fig" in env:
+                st.plotly_chart(env["fig"], use_container_width=True)
+            elif "plt" in env and plt.get_fignums():
                 st.pyplot(plt.gcf())
                 plt.clf()
-        except Exception as e:
+        except:
             pass
 
-# 📂 ১. ফাইল ও ইমেজ আপলোড সমাধান ট্যাব
+# 💬 Tab 1: AI Assistant (Vision Support)
 with tab1:
-    st.subheader("📁 ডকুমেন্ট/স্ক্রিনশট আপলোড এবং সমাধান প্যানেল")
-    uploaded_file = st.file_uploader("PDF, টেক্সট ফাইল অথবা গণিতের স্ক্রিনশট এখানে আপলোড করুন:", type=["pdf", "txt", "png", "jpg", "jpeg"], key="tab1_uploader")
+    st.subheader("📁 মাল্টিমোডাল ফাইল ও ইমেজ এনালাইজার")
+    uploaded_file = st.file_uploader("Upload PDF or Image", type=["pdf", "txt", "png", "jpg", "jpeg"])
     
-    extracted_context = ""
-    image_base64 = ""
-    
-    if uploaded_file is not None:
-        file_bytes = uploaded_file.getvalue()
+    extracted_text, image_base64 = "", ""
+    if uploaded_file:
+        fb = uploaded_file.getvalue()
         if uploaded_file.name.lower().endswith(".pdf") and PDF_SUPPORT:
-            try:
-                with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-                    extracted_context = "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
-                st.info(f"📄 PDF থেকে তথ্য নেওয়া হয়েছে")
-            except Exception as e:
-                st.error(f"PDF রিড করতে সমস্যা হয়েছে: {e}")
+            with pdfplumber.open(BytesIO(fb)) as pdf:
+                extracted_text = "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
+            st.info("📄 PDF কনটেন্ট লোড করা হয়েছে।")
         elif uploaded_file.name.split('.')[-1].lower() in ["png", "jpg", "jpeg"]:
-            st.image(file_bytes, caption="আপলোড করা স্ক্রিনশট/ছবি", width=300)
-            image_base64 = process_uploaded_image(file_bytes)
+            st.image(fb, width=250)
+            image_base64 = process_uploaded_image(fb)
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if user_input := st.chat_input("আপনার প্রশ্নটি লিখুন...", key="tab1_chat"):
-        final_prompt = user_input
-        search_info = ""
-        if web_search_enabled and WEB_SEARCH_SUPPORT:
-            with st.spinner("🌐 অনুসন্ধান করা হচ্ছে..."):
-                search_info = perform_web_search(user_input)
-
-        if extracted_context:
-            final_prompt = f"Context from uploaded file:\n{extracted_context}\n\n{search_info}\nUser Question: {user_input}"
-        elif search_info:
-            final_prompt = f"{search_info}\nUser Question: {user_input}"
-            
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.markdown(user_input)
-
+    if u_input := st.chat_input("Ask anything...", key="t1_chat"):
+        st.session_state.messages.append({"role": "user", "content": u_input})
+        with st.chat_message("user"): st.markdown(u_input)
+        
         with st.chat_message("assistant"):
-            full_response = ""
             if not client:
-                st.error("⚠️ Groq Client ইনিশিয়েলাইজ করা যায়নি। দয়া করে সাইডবারে সঠিক API Key দিন।")
-            else:
-                with st.spinner("🐯 এআই সমাধান তৈরি করছে... অনুগ্রহ করে অপেক্ষা করুন..."):
-                    try:
-                        if image_base64:
-                            text_content = (
-                                "You are Royal Bengal AI Machine, an Elite Academic Scholar and close friend of the user. "
-                                "Provide highly detailed, step-by-step academic solutions. Default to beautiful Bengali script. "
-                                f"User Question: {user_input if user_input else 'এই ছবিটির ব্যাখ্যা দাও বন্ধু।'}"
-                            )
-                            completion = client.chat.completions.create(
-                                model="llama-3.2-11b-vision-preview",
-                                messages=[
-                                    {
-                                        "role": "user",
-                                        "content": [
-                                            {"type": "text", "text": text_content},
-                                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-                                        ]
-                                    }
-                                ],
-                                stream=False
-                            )
-                            full_response = completion.choices[0].message.content
-                        else:
-                            completion = client.chat.completions.create(
-                                model="llama-3.3-70b-versatile",
-                                messages=[
-                                    {
-                                        "role": "system", 
-                                        "content": "You are Royal Bengal AI Machine. Default to beautiful Bengali script. Provide deeply researched exhaustive university-level academic answers. Use $$ for LaTeX."
-                                    },
-                                    {"role": "user", "content": final_prompt}
-                                ],
-                                stream=False
-                            )
-                            full_response = completion.choices[0].message.content
-                            
-                        st.markdown(full_response)
-                        
-                    except Exception as e:
-                        st.error(f"✨ ক্লাউড সার্ভার থেকে রেসপন্স পেতে সমস্যা হয়েছে। অনুগ্রহ করে সাইডবার থেকে API Key চেক করুন বা ক্যাশ ক্লিয়ার করুন। এরর: {e}")
-                        full_response = "⚠️ কোনো সমাধান জেনারেট করা সম্ভব হয়নি।"
-
-            if "$$" in full_response:
-                try: st.latex(full_response.split("$$")[1])
-                except: pass
-            try_execute_graph(full_response)
-            
-            session_id = st.session_state.current_session_id_tab1
-            if not session_id:
-                session_id = str(uuid.uuid4())
-                st.session_state.current_session_id_tab1 = session_id
-                title = user_input[:30] + ("..." if len(user_input) > 30 else "")
+                st.error("API client configuration missing.")
             else:
                 try:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
-                    row = cursor.fetchone()
-                    conn.close()
-                    title = row[0] if row else (user_input[:30] + ("..." if len(user_input) > 30 else ""))
-                except:
-                    title = user_input[:30] + ("..." if len(user_input) > 30 else "")
-            
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
-            save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.messages, "tab1")
-            st.rerun()
-
-# 📊 ২. Math Wave Solver ট্যাব
-with tab2:
-    st.subheader("📊 Math Wave Solver")
-    for message in st.session_state.math_messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-            
-    if math_input := st.chat_input("গণিত বা তরঙ্গের সমীকরণটি লিখুন...", key="tab2_chat"):
-        st.session_state.math_messages.append({"role": "user", "content": math_input})
-        with st.chat_message("user"):
-            st.markdown(math_input)
-            
-        with st.chat_message("assistant"):
-            full_response = ""
-            if not client:
-                st.error("⚠️ Groq Client সচল নেই।")
-            else:
-                # 🔴 সম্পূর্ণ টাইপো-মুক্ত এবং পিওর Streamlit spinner ব্লক (কোনো ভেরিয়েবল অ্যাসাইনমেন্ট নেই!)
-                with st.spinner("🌐 গাণিতিক তথ্য অনুসন্ধান ও সমাধান করা হচ্ছে..."):
-                    try:
-                        search_info = ""
-                        if web_search_enabled and WEB_SEARCH_SUPPORT:
-                            search_info = perform_web_search(math_input)
-                        
-                        final_math_prompt = math_input
-                        if search_info:
-                            final_math_prompt = f"{search_info}\nUser Question: {math_input}"
-
-                        completion = client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=[
-                                {"role": "system", "content": "You are a Math Professor. Default to Bengali. Use $$ for equations. Wrap plotly figures in triple backticks python and use fig variable."},
-                                {"role": "user", "content": final_math_prompt}
-                            ],
+                    s_info = perform_web_search(u_input) if web_search_enabled else ""
+                    prompt = f"{s_info}\nContext:\n{extracted_text}\n\nQuestion: {u_input}" if extracted_text else (f"{s_info}\nQuestion: {u_input}" if s_info else u_input)
+                    
+                    if image_base64:
+                        res = client.chat.completions.create(
+                            model="llama-3.2-11b-vision-preview",
+                            messages=[{"role": "user", "content": [{"type": "text", "text": f"Provide comprehensive solution in Bengali. {u_input}"}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}]}],
                             stream=False
                         )
-                        full_response = completion.choices[0].message.content
-                        st.markdown(full_response)
-                    except Exception as e:
-                        st.error(f"ম্যাথ সমাধান করতে সমস্যা হয়েছে: {e}")
-            
-            try_execute_graph(full_response)
-            
-            session_id = st.session_state.current_session_id_tab2
-            if not session_id:
-                session_id = str(uuid.uuid4())
-                st.session_state.current_session_id_tab2 = session_id
-                title = math_input[:30] + ("..." if len(math_input) > 30 else "")
+                        full_res = res.choices[0].message.content
+                        st.markdown(full_res)
+                    else:
+                        # ⚡ DeepSeek-style UI Real-time Token Streaming Block
+                        res_stream = client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=[{"role": "system", "content": "You are Royal Bengal AI, answering elegantly in Bengali with precise technical execution."}, {"role": "user", "content": prompt}],
+                            stream=True
+                        )
+                        full_res = st.write_stream(res_stream)
+                    
+                    run_embedded_graph(full_res)
+                    
+                    s_id = st.session_state.current_session_id_tab1 or str(uuid.uuid4())
+                    st.session_state.current_session_id_tab1 = s_id
+                    st.session_state.messages.append({"role": "assistant", "content": full_res})
+                    save_session(s_id, st.session_state.user_profile['email'], u_input[:30], st.session_state.messages, "tab1")
+                except Exception as e:
+                    st.error(f"Error generation: {e}")
+
+# 📊 Tab 2: Math Wave Solver (With DeepSeek Streaming)
+with tab2:
+    st.subheader("📊 Math Wave Core")
+    for msg in st.session_state.math_messages:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+        
+    if m_input := st.chat_input("Enter math equation...", key="t2_chat"):
+        st.session_state.math_messages.append({"role": "user", "content": m_input})
+        with st.chat_message("user"): st.markdown(m_input)
+        
+        with st.chat_message("assistant"):
+            if not client: st.error("Client Error.")
             else:
                 try:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
-                    row = cursor.fetchone()
-                    conn.close()
-                    title = row[0] if row else (math_input[:30] + ("..." if len(math_input) > 30 else ""))
-                except:
-                    title = math_input[:30] + ("..." if len(math_input) > 30 else "")
-                
-            st.session_state.math_messages.append({"role": "assistant", "content": full_response})
-            save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.math_messages, "tab2")
-            st.rerun()
+                    s_info = perform_web_search(m_input) if web_search_enabled else ""
+                    m_stream = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "system", "content": "You are an expert Math professor. Output detailed LaTeX steps using $$. If rendering plot, generate valid python plotly code with fig object."}, {"role": "user", "content": f"{s_info}\nMath Query: {m_input}"}],
+                        stream=True
+                    )
+                    # Real-time token by token print output on screen
+                    full_res = st.write_stream(m_stream)
+                    run_embedded_graph(full_res)
+                    
+                    s_id = st.session_state.current_session_id_tab2 or str(uuid.uuid4())
+                    st.session_state.current_session_id_tab2 = s_id
+                    st.session_state.math_messages.append({"role": "assistant", "content": full_res})
+                    save_session(s_id, st.session_state.user_profile['email'], m_input[:30], st.session_state.math_messages, "tab2")
+                except Exception as e:
+                    st.error(f"Execution failed: {e}")
 
-# 📈 ৩. Economics Demand Analyzer ট্যাব
+# 📈 Tab 3: Economics Analyzer (With DeepSeek Streaming)
 with tab3:
     st.subheader("📈 Economics Demand Analyzer")
-    for message in st.session_state.econ_messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-            
-    if econ_input := st.chat_input("অর্থনীতি বা চাহিদা রেখার প্রশ্নটি লিখুন...", key="tab3_chat"):
-        st.session_state.econ_messages.append({"role": "user", "content": econ_input})
-        with st.chat_message("user"):
-            st.markdown(econ_input)
-            
+    for msg in st.session_state.econ_messages:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+        
+    if e_input := st.chat_input("Enter economics problem...", key="t3_chat"):
+        st.session_state.econ_messages.append({"role": "user", "content": e_input})
+        with st.chat_message("user"): st.markdown(e_input)
+        
         with st.chat_message("assistant"):
-            full_response = ""
-            if not client:
-                st.error("⚠️ Groq Client সচল নেই।")
-            else:
-                with st.spinner("🌐 অর্থনীতি সংক্রান্ত লাইভ তথ্য অনুসন্ধান ও বিশ্লেষণ করা হচ্ছে..."):
-                    try:
-                        search_info = ""
-                        if web_search_enabled and WEB_SEARCH_SUPPORT:
-                            search_info = perform_web_search(econ_input)
-                        
-                        final_econ_prompt = econ_input
-                        if search_info:
-                            final_econ_prompt = f"{search_info}\nUser Question: {econ_input}"
-
-                        completion = client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=[
-                                {"role": "system", "content": "You are an Economics Professor. Default to Bengali. Use $$ for formulas. If drawing a curve, write plotly code using fig variable."},
-                                {"role": "user", "content": final_econ_prompt}
-                            ],
-                            stream=False
-                        )
-                        full_response = completion.choices[0].message.content
-                        st.markdown(full_response)
-                    except Exception as e:
-                        st.error(f"অর্থনীতি সমাধান করতে সমস্যা হয়েছে: {e}")
-            
-            try_execute_graph(full_response)
-            
-            session_id = st.session_state.current_session_id_tab3
-            if not session_id:
-                session_id = str(uuid.uuid4())
-                st.session_state.current_session_id_tab3 = session_id
-                title = econ_input[:30] + ("..." if len(econ_input) > 30 else "")
+            if not client: st.error("Client offline.")
             else:
                 try:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT title FROM chat_sessions WHERE session_id = ?", (session_id,))
-                    row = cursor.fetchone()
-                    conn.close()
-                    title = row[0] if row else (econ_input[:30] + ("..." if len(econ_input) > 30 else ""))
-                except:
-                    title = econ_input[:30] + ("..." if len(econ_input) > 30 else "")
-                
-            st.session_state.econ_messages.append({"role": "assistant", "content": full_response})
-            save_session(session_id, st.session_state.user_profile['email'], title, st.session_state.econ_messages, "tab3")
-            st.rerun()
+                    s_info = perform_web_search(e_input) if web_search_enabled else ""
+                    e_stream = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "system", "content": "You are an Economics Professor. Explain curves with text first, then generate valid plotly visualization code using fig variable."}, {"role": "user", "content": f"{s_info}\nEcon Query: {e_input}"}],
+                        stream=True
+                    )
+                    full_res = st.write_stream(e_stream)
+                    run_embedded_graph(full_res)
+                    
+                    s_id = st.session_state.current_session_id_tab3 or str(uuid.uuid4())
+                    st.session_state.current_session_id_tab3 = s_id
+                    st.session_state.econ_messages.append({"role": "assistant", "content": full_res})
+                    save_session(s_id, st.session_state.user_profile['email'], e_input[:30], st.session_state.econ_messages, "tab3")
+                except Exception as e:
+                    st.error(f"Error processing: {e}")
 
-# 🎨 ৪. AI Image Generator ট্যাব
+# 🎨 Tab 4: AI Image Framework
 with tab4:
-    st.subheader("🎨 AI Image Generator")
-    st.write("দুঃখিত ! টেক্সট-টু-ইমেজ জেনারেশন মডেলটি এখনো ক্লাউডে কনফিগার করা হচ্ছে।")
+    st.subheader("🎨 AI Image Generation Hub")
+    st.write("Image model cloud infrastructure connection establishing...")
