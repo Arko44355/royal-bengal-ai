@@ -15,7 +15,7 @@ import json
 import uuid
 import os
 from datetime import datetime
-import google.generativeai as genai  # ✅ Gemini Vision
+import google.generativeai as genai  # ✅ Gemini Vision (FREE)
 
 # 🛡️ Safe imports with fallback
 try:
@@ -441,21 +441,15 @@ def safe_econ_stream(prompt, api_key):
     except Exception as e:
         yield f"⚠️ Economics Error: {str(e)}"
 
-# ============ GEMINI VISION GENERATOR ============
+# ============ GEMINI PRO VISION (FREE) ============
 def vision_response_generator(image_base64, user_prompt, api_key):
-    """Gemini Vision API for image analysis - 100% FREE!"""
+    """Gemini pro-vision - 100% FREE image analysis"""
     
-    # Check Gemini API key
     gemini_key = get_gemini_api_key()
     if not gemini_key:
         yield "⚠️ **Gemini API Key পাওয়া যায়নি!**"
-        yield "\n\n📢 Gemini Vision ব্যবহার করতে API key লাগবে।"
-        yield "\n\n🔑 কীভাবে পাবেন:"
-        yield "\n1. makersuite.google.com এ যান"
-        yield "\n2. 'Get API Key' ক্লিক করুন"
-        yield "\n3. ফ্রি API Key কপি করুন"
-        yield "\n4. `.streamlit/secrets.toml`-এ যোগ করুন:"
-        yield "\n   `GEMINI_API_KEY = 'আপনার_কি'`"
+        yield "\n\n📢 ফ্রি Gemini Vision ব্যবহার করতে API key লাগবে।"
+        yield "\n🔑 makersuite.google.com থেকে ফ্রি key নিন!"
         return
     
     if not image_base64:
@@ -465,13 +459,15 @@ def vision_response_generator(image_base64, user_prompt, api_key):
     try:
         # Configure Gemini
         genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # ✅ FREE model - gemini-pro-vision
+        model = genai.GenerativeModel('gemini-pro-vision')
         
         # Decode image
         image_data = base64.b64decode(image_base64)
         image = Image.open(BytesIO(image_data))
         
-        # Prepare prompt
+        # Prepare prompt (Bengali)
         prompt = f"""You are Royal Bengal AI Machine. 
         Analyze this image carefully and respond in Bengali script.
         Provide a detailed, friendly, and helpful explanation.
@@ -483,7 +479,7 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         response = model.generate_content([prompt, image])
         
         if response.text:
-            yield f"🤖 **Gemini Vision Analysis:**\n\n{response.text}"
+            yield f"🤖 **Gemini Vision Analysis (FREE):**\n\n{response.text}"
         else:
             yield "⚠️ Gemini Vision থেকে কোনো উত্তর পাওয়া যায়নি।"
             
@@ -620,7 +616,7 @@ def render_sidebar():
                 st.session_state.api_key_configured = False
             
             st.markdown("---")
-            st.markdown("🟢 **Gemini Vision (Free)**")
+            st.markdown("🟢 **Gemini Vision (100% FREE)**")
             gemini_key = st.text_input(
                 "Gemini API Key",
                 type="password",
@@ -942,7 +938,7 @@ def render_chat_interface():
     # Tab 4: Image AI
     with tab4:
         st.markdown("### 🎨 AI Image Analysis")
-        st.info("📸 Upload images for AI-powered analysis and description! (Powered by Gemini - FREE)")
+        st.info("📸 Upload images for AI-powered analysis and description! (Powered by Gemini - 100% FREE)")
         
         uploaded_image = st.file_uploader(
             "📸 Upload Image",
@@ -967,7 +963,7 @@ def render_chat_interface():
                             placeholder="e.g., Describe this image, Solve the math problem, etc."
                         )
                         
-                        if st.button("🔍 Analyze Image with Gemini", use_container_width=True):
+                        if st.button("🔍 Analyze Image with Gemini (FREE)", use_container_width=True):
                             with st.chat_message("assistant"):
                                 stream = vision_response_generator(
                                     img_base64,
@@ -996,7 +992,7 @@ def main():
     st.markdown("""
     <div style="text-align: center; color: #888; padding: 1rem;">
         <p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p>
-        <p style="font-size: 0.8rem;">Powered by Groq AI + Gemini Vision • Secure • Fast • Intelligent • FREE</p>
+        <p style="font-size: 0.8rem;">Powered by Groq AI + Gemini Vision (FREE) • Secure • Fast • Intelligent</p>
     </div>
     """, unsafe_allow_html=True)
 
