@@ -443,7 +443,7 @@ def safe_econ_stream(prompt, api_key):
 
 # ============ GEMINI PRO VISION (FREE) ============
 def vision_response_generator(image_base64, user_prompt, api_key):
-    """Gemini pro-vision - 100% FREE image analysis"""
+    """Gemini Vision - Updated with correct model name"""
     
     gemini_key = get_gemini_api_key()
     if not gemini_key:
@@ -460,8 +460,8 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         # Configure Gemini
         genai.configure(api_key=gemini_key)
         
-        # ✅ FREE model - gemini-pro-vision
-        model = genai.GenerativeModel('gemini-pro-vision')
+        # ✅ CORRECT MODEL NAME - gemini-1.5-pro
+        model = genai.GenerativeModel('gemini-1.5-pro')
         
         # Decode image
         image_data = base64.b64decode(image_base64)
