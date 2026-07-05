@@ -46,72 +46,174 @@ st.set_page_config(
 # ============ CUSTOM CSS ============
 st.markdown("""
 <style>
+    /* পুরো অ্যাপের ব্যাকগ্রাউন্ড */
     .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
     }
+    
+    /* Main header */
     .main-header {
-        font-size: 2.5rem;
+        font-size: 2.8rem;
         font-weight: bold;
-        background: linear-gradient(45deg, #FF6B35, #F7931E);
+        background: linear-gradient(45deg, #FF6B35, #F7931E, #FFD700);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        padding: 1rem;
+        padding: 1.5rem;
+        text-shadow: 0 0 30px rgba(255, 107, 53, 0.3);
     }
-    .chat-message {
+    
+    /* Chat messages container */
+    .stChatMessage {
+        background: rgba(255, 255, 255, 0.05) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
         padding: 1rem;
-        border-radius: 10px;
         margin: 0.5rem 0;
-        background: white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        color: #ffffff !important;
     }
-    .user-message {
-        background: #e3f2fd;
-        border-left: 4px solid #1976d2;
-    }
-    .assistant-message {
-        background: #f5f5f5;
-        border-left: 4px solid #ff6f00;
-    }
-    .stButton > button {
-        background: linear-gradient(45deg, #FF6B35, #F7931E);
-        color: white;
-        font-weight: bold;
+    
+    /* User message */
+    div[data-testid="stChatMessage"][data-role="user"] {
+        background: linear-gradient(135deg, #FF6B35, #F7931E) !important;
         border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        transition: all 0.3s ease;
+        color: white !important;
     }
+    
+    /* Assistant message */
+    div[data-testid="stChatMessage"][data-role="assistant"] {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 1px solid rgba(255, 107, 53, 0.3);
+        color: #e0e0e0 !important;
+    }
+    
+    /* Sidebar */
+    .css-1d391kg {
+        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    /* Sidebar text */
+    .css-1d391kg, .css-1d391kg p, .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 {
+        color: #ffffff !important;
+    }
+    
+    /* Input box */
+    .stTextInput > div > div > input {
+        background: rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 107, 53, 0.3) !important;
+        border-radius: 25px !important;
+        color: white !important;
+        padding: 0.75rem 1.5rem !important;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #FF6B35 !important;
+        box-shadow: 0 0 20px rgba(255, 107, 53, 0.2) !important;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(45deg, #FF6B35, #F7931E) !important;
+        color: white !important;
+        font-weight: bold !important;
+        border: none !important;
+        border-radius: 25px !important;
+        padding: 0.6rem 1.5rem !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3) !important;
+    }
+    
     .stButton > button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+        transform: translateY(-2px) scale(1.02) !important;
+        box-shadow: 0 6px 25px rgba(255, 107, 53, 0.5) !important;
     }
-    .sidebar-content {
-        background: white;
-        padding: 1rem;
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border-radius: 10px !important;
+        color: white !important;
+    }
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border-radius: 10px !important;
+        color: #aaa !important;
+        padding: 0.5rem 1.5rem !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #FF6B35, #F7931E) !important;
+        color: white !important;
+    }
+    
+    /* Success/Warning/Error messages */
+    .stAlert {
+        background: rgba(255, 255, 255, 0.05) !important;
+        backdrop-filter: blur(10px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: white !important;
+    }
+    
+    /* Code blocks */
+    .stCodeBlock {
+        background: rgba(0, 0, 0, 0.3) !important;
+        border-radius: 10px !important;
+    }
+    
+    /* Footer */
+    .footer {
+        text-align: center;
+        color: #888;
+        padding: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        margin-top: 2rem;
+    }
+    
+    /* Progress bar */
+    .stProgress > div > div {
+        background: linear-gradient(45deg, #FF6B35, #F7931E) !important;
+    }
+    
+    /* Select box */
+    .stSelectbox > div > div {
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: white !important;
+    }
+    
+    /* File uploader */
+    .stFileUploader {
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 2px dashed rgba(255, 107, 53, 0.3) !important;
+        border-radius: 15px !important;
+        padding: 2rem !important;
+    }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
         border-radius: 10px;
-        margin: 0.5rem 0;
     }
-    .status-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: bold;
-    }
-    .status-online {
-        background: #4caf50;
-        color: white;
-    }
-    .status-offline {
-        background: #f44336;
-        color: white;
-    }
-    div[data-testid="stExpander"] {
-        background: white;
+    
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(45deg, #FF6B35, #F7931E);
         border-radius: 10px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        margin: 0.5rem 0;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #FF6B35;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -587,18 +689,14 @@ def render_auth():
                             st.error("❌ Invalid email or password.")
                     except Exception as e:
                         st.error(f"❌ Login error: {str(e)}")
-        
-        with col2:
-            if st.button("🔄 Reset Password", use_container_width=True):
-                st.info("📧 Password reset link will be sent to your email.")
 
 def render_sidebar():
     """Render sidebar with controls"""
     with st.sidebar:
         st.markdown(f"""
         <div style="text-align: center; padding: 1rem;">
-            <h2>🐅 Royal Bengal AI</h2>
-            <p style="color: #666;">Welcome, {st.session_state.user_profile.get('name', 'User')}!</p>
+            <h2 style="color: #FF6B35;">🐅 Royal Bengal AI</h2>
+            <p style="color: #aaa;">Welcome, {st.session_state.user_profile.get('name', 'User')}!</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -744,9 +842,9 @@ def render_chat_interface():
     
     # Show user info
     st.markdown(f"""
-    <div style="text-align: center; padding: 0.5rem; background: rgba(255,255,255,0.5); border-radius: 10px;">
+    <div style="text-align: center; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 1rem;">
         👋 Welcome, {st.session_state.user_profile.get('name', 'User')}! 
-        <span class="status-badge status-online">● Online</span>
+        <span style="background: #4caf50; color: white; padding: 0.2rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">● Online</span>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1038,7 +1136,7 @@ def main():
     # Footer
     st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; color: #666; padding: 1rem;">
+    <div style="text-align: center; color: #888; padding: 1rem;">
         <p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p>
         <p style="font-size: 0.8rem;">Powered by Groq AI • Secure • Fast • Intelligent</p>
     </div>
