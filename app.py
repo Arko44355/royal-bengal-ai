@@ -234,7 +234,7 @@ def init_session_state():
         "image_uploaded": False,
         "uploaded_image": None,
         "api_key_configured": False,
-        "web_search_enabled": True  # ← এখানে ডিফল্ট সেট করুন
+        "web_search_enabled": True
     }
     
     for key, value in defaults.items():
@@ -505,8 +505,9 @@ def safe_econ_stream(prompt, api_key):
     except Exception as e:
         yield f"⚠️ Economics Error: {str(e)}"
 
+# ============ FIXED VISION RESPONSE GENERATOR ============
 def vision_response_generator(image_base64, user_prompt, api_key):
-    """Generate response for image analysis"""
+    """Generate response for image analysis - Fixed version"""
     if not GROQ_SUPPORT or not api_key:
         yield "⚠️ API not configured. Please check your Groq API key."
         return
@@ -515,10 +516,8 @@ def vision_response_generator(image_base64, user_prompt, api_key):
         yield "⚠️ No image found. Please upload an image first."
         return
     
-    models_to_try = [
-        "llama-3.2-11b-vision-preview",
-        "llama-3.2-90b-vision-preview"
-    ]
+    # Try with 11B Vision model (more stable than 90B)
+    model = "llama-3.2-11b-vision-preview"
     
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -529,61 +528,67 @@ def vision_response_generator(image_base64, user_prompt, api_key):
     Respond in Bengali script. Analyze the image carefully and provide detailed explanation.
     If it's a math problem, solve it step by step with LaTeX.
     If it's a document, summarize the key points.
+    Be friendly and helpful.
     User question: {user_prompt if user_prompt else 'বিশ্লেষণ করে বলুন এই ছবিতে কী আছে।'}"""
     
-    success = False
-    last_error = ""
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_content},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+                ]
+            }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1024,
+        "stream": True
+    }
     
-    for model in models_to_try:
-        payload = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": text_content},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-                    ]
-                }
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1024,
-            "stream": True
-        }
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            stream=True,
+            timeout=45
+        )
         
-        try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                stream=True,
-                timeout=30
-            )
+        if response.status_code == 200:
+            for line in response.iter_lines():
+                if line:
+                    decoded_line = line.decode('utf-8').strip()
+                    if decoded_line.startswith("data:"):
+                        data_str = decoded_line[5:].strip()
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            chunk_json = json.loads(data_str)
+                            content = chunk_json['choices'][0]['delta'].get('content', '')
+                            if content:
+                                yield content
+                        except:
+                            pass
+        else:
+            error_msg = f"API Error {response.status_code}"
+            try:
+                error_detail = response.json()
+                if "error" in error_detail:
+                    error_msg += f": {error_detail['error'].get('message', 'Unknown error')}"
+            except:
+                pass
             
-            if response.status_code == 200:
-                success = True
-                for line in response.iter_lines():
-                    if line:
-                        decoded_line = line.decode('utf-8').strip()
-                        if decoded_line.startswith("data:"):
-                            data_str = decoded_line[5:].strip()
-                            if data_str == "[DONE]":
-                                break
-                            try:
-                                chunk_json = json.loads(data_str)
-                                content = chunk_json['choices'][0]['delta'].get('content', '')
-                                if content:
-                                    yield content
-                            except:
-                                pass
-                break
-            else:
-                last_error = f"Model {model} failed: {response.status_code}"
-        except Exception as e:
-            last_error = f"Model {model} error: {str(e)}"
-    
-    if not success:
-        yield f"⚠️ Image analysis failed. Last error: {last_error}"
+            yield f"⚠️ Vision analysis error: {error_msg}"
+            yield "\n\n💡 আপনি কি ছবিটির বিষয়বস্তু লিখে বলতে পারবেন? আমি তাহলে সাহায্য করতে পারব।"
+            
+    except requests.Timeout:
+        yield "⚠️ Request timed out. The image might be too large."
+        yield "\n\n💡 ছবিটি ছোট করে আপলোড করার চেষ্টা করুন।"
+    except Exception as e:
+        yield f"⚠️ Error: {str(e)}"
+        yield "\n\n💡 আপনি কি ছবিটির বিষয়বস্তু লিখে বলতে পারবেন? আমি তাহলে সাহায্য করতে পারব।"
 
 def try_execute_graph(full_response):
     """Extract and execute Python code for graphs from response"""
@@ -740,7 +745,7 @@ def render_sidebar():
         if voice_on:
             st.info("🎤 Voice feature coming soon!")
         
-        # Web Search - FIXED
+        # Web Search
         st.markdown("---")
         if WEB_SEARCH_SUPPORT:
             st.session_state.web_search_enabled = st.checkbox(
@@ -906,7 +911,6 @@ def render_chat_interface():
                             if extracted_text:
                                 context += f"📄 Document context:\n{extracted_text}\n\n"
                             
-                            # FIXED: Use session state for web_search_enabled
                             if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
@@ -958,7 +962,6 @@ def render_chat_interface():
                     try:
                         with st.spinner("🧮 সমাধান করছি..."):
                             context = ""
-                            # FIXED: Use session state for web_search_enabled
                             if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
@@ -1005,7 +1008,6 @@ def render_chat_interface():
                     try:
                         with st.spinner("📈 বিশ্লেষণ করছি..."):
                             context = ""
-                            # FIXED: Use session state for web_search_enabled
                             if st.session_state.get("web_search_enabled", False):
                                 search_result = perform_web_search(prompt)
                                 if search_result:
