@@ -15,15 +15,16 @@ import json
 import uuid
 import os
 from datetime import datetime
-import docx  # ✅ Word document support
+import tempfile  # ✅ MinerU-এর জন্য
+
+# 🛡️ MinerU ইমপোর্ট
+try:
+    from mineru import MinerU
+    MINERU_SUPPORT = True
+except ImportError:
+    MINERU_SUPPORT = False
 
 # 🛡️ Safe imports
-try:
-    import pdfplumber
-    PDF_SUPPORT = True
-except ImportError:
-    PDF_SUPPORT = False
-
 try:
     from groq import Groq
     GROQ_SUPPORT = True
@@ -105,10 +106,6 @@ st.markdown("""
     .stAlert { background: rgba(255, 255, 255, 0.05) !important; backdrop-filter: blur(10px) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; color: white !important; }
     .stCodeBlock { background: rgba(0, 0, 0, 0.3) !important; border-radius: 10px !important; }
     .footer { text-align: center; color: #888; padding: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 2rem; }
-    .stProgress > div > div { background: linear-gradient(45deg, #FF6B35, #F7931E) !important; }
-    .stSelectbox > div > div { background: rgba(255, 255, 255, 0.05) !important; color: white !important; }
-    .stFileUploader { background: rgba(255, 255, 255, 0.03) !important; border: 2px dashed rgba(255, 107, 53, 0.3) !important; border-radius: 15px !important; padding: 2rem !important; }
-    .latex-output { background: #1e1e1e; padding: 1rem; border-radius: 10px; border: 1px solid #FF6B35; }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
     ::-webkit-scrollbar-thumb { background: linear-gradient(45deg, #FF6B35, #F7931E); border-radius: 10px; }
@@ -156,26 +153,31 @@ init_db()
 
 # ============ HELPER FUNCTIONS ============
 
-def extract_text_from_docx(file_bytes):
-    """Extract text from Word document"""
+def extract_text_with_mineru(file_bytes):
+    """MinerU Flash Mode দিয়ে PDF থেকে টেক্সট এক্সট্র্যাক্ট করুন (ফ্রি!)"""
+    if not MINERU_SUPPORT:
+        return "⚠️ MinerU ইনস্টল করা নেই। `pip install mineru-open-sdk` দিন।"
+    
     try:
-        from docx import Document
-        doc = Document(BytesIO(file_bytes))
-        text = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
-        return text
+        # টেম্পোরারি ফাইল তৈরি করুন
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            tmp_file.write(file_bytes)
+            tmp_path = tmp_file.name
+        
+        # MinerU Flash Mode - কোনো API key লাগে না!
+        client = MinerU()
+        result = client.flash_extract(tmp_path)
+        
+        # টেম্প ফাইল ডিলিট করুন
+        os.unlink(tmp_path)
+        
+        if result and result.markdown:
+            return result.markdown
+        else:
+            return "⚠️ MinerU থেকে কোনো টেক্সট পাওয়া যায়নি। PDF টি স্ক্যান করা বা খালি হতে পারে।"
+            
     except Exception as e:
-        return f"Error reading Word document: {str(e)}"
-
-def extract_text_from_pdf(file_bytes):
-    """Extract text from PDF (non-scanned)"""
-    if not PDF_SUPPORT:
-        return "PDF support not available. Install pdfplumber."
-    try:
-        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-            text = "\n".join([p.extract_text() or "" for p in pdf.pages if p.extract_text()])
-        return text
-    except Exception as e:
-        return f"Error reading PDF: {str(e)}"
+        return f"⚠️ MinerU Error: {str(e)}\n\n💡 নিশ্চিত করুন PDF টি ১০MB এর কম এবং ২০ পৃষ্ঠার বেশি নয়।"
 
 def perform_web_search(query, max_results=3):
     if not WEB_SEARCH_SUPPORT:
@@ -213,27 +215,17 @@ def safe_text_stream(prompt, api_key):
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",  # ✅ কম টোকেন খরচ
             messages=[
                 {"role": "system", "content": """You are Royal Bengal AI, created by Md Mohtasim Billah.
                 Always respond in Bengali script. Be friendly, helpful, and professional.
                 Provide step-by-step solutions with clear explanations.
                 Always output COMPLETE LaTeX code for all mathematical expressions using $$ ... $$ format.
-                After the solution, provide a separate section with the complete LaTeX code that can be copied.
-                Format the LaTeX code section as:
-                
-                ## 📝 সম্পূর্ণ LaTeX কোড (কপি করে PDF বানান)
-                ```latex
-                \\documentclass{article}
-                \\usepackage{amsmath}
-                \\begin{document}
-                ...
-                \\end{document}
-                ```"""},
+                After the solution, provide a separate section with the complete LaTeX code."""},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=4096,
+            max_tokens=2048,
             stream=True
         )
         for chunk in response:
@@ -251,26 +243,16 @@ def safe_math_stream(prompt, api_key):
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",  # ✅ কম টোকেন খরচ
             messages=[
                 {"role": "system", "content": """You are an expert Mathematics professor.
                 Respond in Bengali script. Provide detailed step-by-step solutions.
                 Use proper LaTeX formatting with $$ for equations.
-                Always output COMPLETE LaTeX code at the end.
-                Format the LaTeX code section as:
-                
-                ## 📝 সম্পূর্ণ LaTeX কোড (কপি করে PDF বানান)
-                ```latex
-                \\documentclass{article}
-                \\usepackage{amsmath}
-                \\begin{document}
-                ...
-                \\end{document}
-                ```"""},
+                Always output COMPLETE LaTeX code at the end."""},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.5,
-            max_tokens=4096,
+            max_tokens=2048,
             stream=True
         )
         for chunk in response:
@@ -288,26 +270,16 @@ def safe_econ_stream(prompt, api_key):
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",  # ✅ কম টোকেন খরচ
             messages=[
                 {"role": "system", "content": """You are an Economics professor.
                 Respond in Bengali script. Provide detailed economic analysis.
                 Use LaTeX for formulas.
-                Always output COMPLETE LaTeX code at the end.
-                Format the LaTeX code section as:
-                
-                ## 📝 সম্পূর্ণ LaTeX কোড (কপি করে PDF বানান)
-                ```latex
-                \\documentclass{article}
-                \\usepackage{amsmath}
-                \\begin{document}
-                ...
-                \\end{document}
-                ```"""},
+                Always output COMPLETE LaTeX code at the end."""},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.5,
-            max_tokens=4096,
+            max_tokens=2048,
             stream=True
         )
         for chunk in response:
@@ -535,43 +507,30 @@ def render_chat_interface():
     # Tab 1: AI Assistant
     with tab1:
         st.markdown("### 💬 AI Assistant with Document Support")
-        st.info("📄 Upload PDF (non-scanned) or Word document to get solutions with LaTeX code")
+        st.info("📄 PDF আপলোড করুন (MinerU Flash Mode - ফ্রি! ১০MB/২০ পৃষ্ঠা পর্যন্ত)")
         
         uploaded_file = st.file_uploader(
-            "📎 Upload Document",
-            type=["pdf", "txt", "docx"],
+            "📎 Upload PDF",
+            type=["pdf"],
             key="tab1_uploader",
-            help="Upload PDF, Word, or Text documents"
+            help="PDF আপলোড করুন (সর্বোচ্চ ১০MB, ২০ পৃষ্ঠা)"
         )
         
         extracted_text = ""
         
         if uploaded_file:
             file_bytes = uploaded_file.getvalue()
-            file_name = uploaded_file.name.lower()
             
-            with st.spinner("📖 Reading document..."):
-                if file_name.endswith(".pdf"):
-                    extracted_text = extract_text_from_pdf(file_bytes)
-                    if extracted_text:
-                        st.success(f"✅ PDF processed: {len(extracted_text)} characters")
-                        with st.expander("📄 View extracted text"):
-                            st.text(extracted_text[:2000] + "..." if len(extracted_text) > 2000 else extracted_text)
-                elif file_name.endswith(".docx"):
-                    try:
-                        extracted_text = extract_text_from_docx(file_bytes)
-                        if extracted_text:
-                            st.success(f"✅ Word document processed: {len(extracted_text)} characters")
-                            with st.expander("📄 View extracted text"):
-                                st.text(extracted_text[:2000] + "..." if len(extracted_text) > 2000 else extracted_text)
-                    except Exception as e:
-                        st.error(f"Word document error: {str(e)}")
-                        st.info("💡 Make sure python-docx is installed: `pip install python-docx`")
-                elif file_name.endswith(".txt"):
-                    extracted_text = file_bytes.decode('utf-8')
-                    st.success(f"✅ Text file loaded: {len(extracted_text)} characters")
-                    with st.expander("📄 View text"):
+            with st.spinner("📖 MinerU দিয়ে PDF পড়া হচ্ছে (ফ্রি!)..."):
+                extracted_text = extract_text_with_mineru(file_bytes)
+                
+                if extracted_text and "⚠️" not in extracted_text:
+                    st.success(f"✅ PDF প্রসেস সম্পন্ন! {len(extracted_text)} অক্ষর")
+                    with st.expander("📄 এক্সট্র্যাক্ট করা টেক্সট দেখুন"):
                         st.text(extracted_text[:2000] + "..." if len(extracted_text) > 2000 else extracted_text)
+                else:
+                    st.error(extracted_text)
+                    st.info("💡 PDF টি স্ক্যান করা বা ইমেজ-ভিত্তিক হতে পারে। অথবা সাইজ/পৃষ্ঠা ১০MB/২০ এর বেশি।")
         
         for msg in st.session_state.messages:
             with st.chat_message(msg["role"]):
@@ -602,10 +561,8 @@ def render_chat_interface():
                             stream = safe_text_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
                             
-                            # Try to render graphs
                             try_execute_graph(full_response)
                             
-                            # Extract LaTeX code if present
                             if "\\documentclass" in full_response:
                                 st.markdown("---")
                                 st.markdown("### 📝 LaTeX Code to Copy")
@@ -621,7 +578,7 @@ def render_chat_interface():
     # Tab 2: Math Solver
     with tab2:
         st.markdown("### 📊 Advanced Math Solver")
-        st.info("📝 Solve math problems with step-by-step LaTeX solutions")
+        st.info("📝 Math problems with step-by-step LaTeX solutions")
         
         for msg in st.session_state.math_messages:
             with st.chat_message(msg["role"]):
@@ -648,10 +605,8 @@ def render_chat_interface():
                             stream = safe_math_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
                             
-                            # Try to render graphs
                             try_execute_graph(full_response)
                             
-                            # Extract LaTeX code if present
                             if "\\documentclass" in full_response:
                                 st.markdown("---")
                                 st.markdown("### 📝 LaTeX Code to Copy")
@@ -694,10 +649,8 @@ def render_chat_interface():
                             stream = safe_econ_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
                             
-                            # Try to render graphs
                             try_execute_graph(full_response)
                             
-                            # Extract LaTeX code if present
                             if "\\documentclass" in full_response:
                                 st.markdown("---")
                                 st.markdown("### 📝 LaTeX Code to Copy")
@@ -718,7 +671,7 @@ def main():
     render_sidebar()
     render_chat_interface()
     st.markdown("---")
-    st.markdown("""<div style="text-align:center;color:#888;padding:1rem;"><p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p><p style="font-size:0.8rem;">Powered by Groq AI • PDF/Word Support • LaTeX Export • Secure • Fast</p></div>""", unsafe_allow_html=True)
+    st.markdown("""<div style="text-align:center;color:#888;padding:1rem;"><p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p><p style="font-size:0.8rem;">Powered by Groq AI + MinerU (FREE) • PDF Support • LaTeX Export</p></div>""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
