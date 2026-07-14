@@ -4,7 +4,6 @@ numpy
 plotly
 matplotlib
 Pillow
-pdfplumber
 groq
 duckduckgo-search
-python-docx
+mineru-open-sdk
