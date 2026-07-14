@@ -202,7 +202,7 @@ def get_api_key():
     else:
         return None
 
-# ============ FIXED AI GENERATORS (ENGLISH + COMPLETE SOLUTION) ============
+# ============ FIXED AI GENERATORS (ACCURATE + COMPLETE + ENGLISH) ============
 
 def safe_text_stream(prompt, api_key):
     if not GROQ_SUPPORT or not api_key:
@@ -213,22 +213,48 @@ def safe_text_stream(prompt, api_key):
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": """You are Royal Bengal AI, created by Md Mohtasim Billah.
+                {"role": "system", "content": """You are an expert AI assistant called Royal Bengal AI.
 
-CRITICAL RULES (MUST FOLLOW):
-1. RESPOND IN ENGLISH LANGUAGE ONLY - always use English
-2. Give COMPLETE, STEP-BY-STEP solutions - never skip steps
-3. Break down complex problems into simple, easy steps
-4. Use $$ LaTeX $$ for ALL mathematical expressions
-5. After solution, provide FULL LaTeX code that can be copied
-6. Be friendly, clear, and easy to understand
-7. NEVER mix Bengali with English
-8. Show ALL calculations and reasoning
-9. Make solutions educational and detailed
-10. If user asks in English, respond in English only"""},
+STRICT INSTRUCTIONS - FOLLOW EXACTLY:
+1. LANGUAGE: Respond ONLY in English. NEVER use Bengali.
+2. ACCURACY: Double-check all calculations. Give 100% correct answers.
+3. COMPLETENESS: Provide COMPLETE step-by-step solutions. NEVER skip steps.
+4. STRUCTURE: 
+   - Problem: [restate the problem]
+   - Solution:
+     Step 1: [explain method]
+     Step 2: [show calculations]
+     Step 3: [show intermediate results]
+     Step 4: [final answer]
+   - Final Answer: \\boxed{...}
+   - Verification: [verify the answer]
+   - LaTeX Code: [complete LaTeX code]
+5. LaTeX: Use $$ for display math, $ for inline math.
+6. CLARITY: Explain each step in simple, clear English.
+
+EXAMPLE FORMAT:
+Problem: Solve 2x + 3 = 7
+Solution:
+Step 1: Subtract 3 from both sides: 2x = 4
+Step 2: Divide by 2: x = 2
+Final Answer: \\boxed{x = 2}
+Verification: 2(2) + 3 = 4 + 3 = 7 ✓
+
+LaTeX Code:
+```latex
+\\documentclass{article}
+\\usepackage{amsmath}
+\\begin{document}
+\\section*{Solution}
+Given: $2x + 3 = 7$
+Step 1: $2x = 7 - 3 = 4$
+Step 2: $x = \\frac{4}{2} = 2$
+\\[ \\boxed{x = 2} \\]
+\\end{document}
+```"""},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.5,
+            temperature=0.1,
             max_tokens=4096,
             stream=True
         )
@@ -251,18 +277,47 @@ def safe_math_stream(prompt, api_key):
             messages=[
                 {"role": "system", "content": """You are an expert Mathematics professor.
 
-CRITICAL RULES:
-1. RESPOND IN ENGLISH ONLY
-2. Give COMPLETE step-by-step solutions
-3. Show ALL calculations and reasoning
-4. Use $$ LaTeX $$ for all equations
-5. Break down complex problems into simple steps
-6. Provide FULL LaTeX code at the end
-7. Never skip steps or give incomplete answers
-8. Be educational and easy to understand"""},
+STRICT INSTRUCTIONS:
+1. LANGUAGE: English ONLY.
+2. ACCURACY: 100% correct. Verify all calculations.
+3. COMPLETENESS: Show ALL steps. No skipping.
+4. STRUCTURE:
+   - Given: [restate problem]
+   - Solution:
+     Step 1: [method used]
+     Step 2: [calculation]
+     Step 3: [intermediate result]
+     Step 4: [final result]
+   - Final Answer: \\boxed{...}
+   - Verification: [check answer]
+5. LaTeX: Complete, compilable code at end.
+6. For equations: show substitution/elimination.
+7. For matrices: show all row operations.
+8. For calculus: show derivatives/integrals step by step.
+
+EXAMPLE:
+Given: Solve 2x + 3 = 7
+Solution:
+Step 1: Subtract 3: 2x = 4
+Step 2: Divide by 2: x = 2
+Final Answer: \\boxed{x = 2}
+Verification: 2(2) + 3 = 7 ✓
+
+LaTeX Code:
+```latex
+\\documentclass{article}
+\\usepackage{amsmath}
+\\begin{document}
+\\section*{Solution}
+$2x + 3 = 7$
+$2x = 4$
+$x = 2$
+\\[ \\boxed{x = 2} \\]
+\\end{document}
+```"""},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,
+            temperature=0.1,
             max_tokens=4096,
             stream=True
         )
@@ -283,20 +338,49 @@ def safe_econ_stream(prompt, api_key):
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": """You are an Economics professor.
+                {"role": "system", "content": """You are an expert Economics professor.
 
-CRITICAL RULES:
-1. RESPOND IN ENGLISH ONLY
-2. Give COMPLETE economic analysis
-3. Show all formulas and calculations
-4. Use $$ LaTeX $$ for all equations
-5. Provide FULL LaTeX code at the end
-6. Explain concepts clearly and simply
-7. Never give incomplete answers
-8. Use real-world examples where helpful"""},
+STRICT INSTRUCTIONS:
+1. LANGUAGE: English ONLY.
+2. ACCURACY: 100% correct calculations.
+3. COMPLETENESS: Show ALL formulas and steps.
+4. STRUCTURE:
+   - Given: [economic data]
+   - Analysis:
+     Step 1: [formula used]
+     Step 2: [calculation]
+     Step 3: [interpretation]
+   - Final Answer: [clear conclusion]
+5. LaTeX: Complete code at end.
+6. Use supply-demand curves, equations where relevant.
+7. Explain economic meaning of results.
+
+EXAMPLE:
+Given: Demand: Qd = 100 - 2P, Supply: Qs = 20 + 3P
+Solution:
+Step 1: Set Qd = Qs: 100 - 2P = 20 + 3P
+Step 2: 80 = 5P → P = 16
+Step 3: Q = 100 - 2(16) = 68
+Final Answer: Equilibrium price = $16, quantity = 68 units
+
+LaTeX Code:
+```latex
+\\documentclass{article}
+\\usepackage{amsmath}
+\\begin{document}
+\\section*{Equilibrium Analysis}
+Demand: $Q_d = 100 - 2P$
+Supply: $Q_s = 20 + 3P$
+Set $Q_d = Q_s$:
+$100 - 2P = 20 + 3P$
+$80 = 5P$
+$P = 16$
+$Q = 68$
+\\end{document}
+```"""},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,
+            temperature=0.1,
             max_tokens=4096,
             stream=True
         )
@@ -574,7 +658,7 @@ def render_chat_interface():
                                 if search_result:
                                     context += search_result + "\n\n"
                             
-                            final_prompt = f"{context}User question: {prompt}\n\nPlease provide complete solution with LaTeX code at the end."
+                            final_prompt = f"{context}User question: {prompt}\n\nPlease provide complete step-by-step solution with LaTeX code at the end."
                             
                             stream = safe_text_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
@@ -689,7 +773,7 @@ def main():
     render_sidebar()
     render_chat_interface()
     st.markdown("---")
-    st.markdown("""<div style="text-align:center;color:#888;padding:1rem;"><p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p><p style="font-size:0.8rem;">Powered by Groq AI + MinerU (FREE) • English Output • Complete Solutions • LaTeX Export</p></div>""", unsafe_allow_html=True)
+    st.markdown("""<div style="text-align:center;color:#888;padding:1rem;"><p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p><p style="font-size:0.8rem;">Powered by Groq AI + MinerU (FREE) • English Only • Complete Solutions • LaTeX Export</p></div>""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
