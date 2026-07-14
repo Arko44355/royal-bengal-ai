@@ -15,7 +15,7 @@ import json
 import uuid
 import os
 from datetime import datetime
-import tempfile  # ✅ MinerU-এর জন্য
+import tempfile
 
 # 🛡️ MinerU ইমপোর্ট
 try:
@@ -156,28 +156,24 @@ init_db()
 def extract_text_with_mineru(file_bytes):
     """MinerU Flash Mode দিয়ে PDF থেকে টেক্সট এক্সট্র্যাক্ট করুন (ফ্রি!)"""
     if not MINERU_SUPPORT:
-        return "⚠️ MinerU ইনস্টল করা নেই। `pip install mineru-open-sdk` দিন।"
+        return "⚠️ MinerU not installed. Run: pip install mineru-open-sdk"
     
     try:
-        # টেম্পোরারি ফাইল তৈরি করুন
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
             tmp_file.write(file_bytes)
             tmp_path = tmp_file.name
         
-        # MinerU Flash Mode - কোনো API key লাগে না!
         client = MinerU()
         result = client.flash_extract(tmp_path)
-        
-        # টেম্প ফাইল ডিলিট করুন
         os.unlink(tmp_path)
         
         if result and result.markdown:
             return result.markdown
         else:
-            return "⚠️ MinerU থেকে কোনো টেক্সট পাওয়া যায়নি। PDF টি স্ক্যান করা বা খালি হতে পারে।"
+            return "⚠️ No text extracted. PDF may be scanned or empty."
             
     except Exception as e:
-        return f"⚠️ MinerU Error: {str(e)}\n\n💡 নিশ্চিত করুন PDF টি ১০MB এর কম এবং ২০ পৃষ্ঠার বেশি নয়।"
+        return f"⚠️ MinerU Error: {str(e)}\n\n💡 Make sure PDF is under 10MB and 20 pages."
 
 def perform_web_search(query, max_results=3):
     if not WEB_SEARCH_SUPPORT:
@@ -187,10 +183,10 @@ def perform_web_search(query, max_results=3):
             results = list(ddgs.text(query, max_results=max_results))
         if not results:
             return ""
-        context = "\n🌐 **লাইভ সার্চ ফলাফল:**\n\n"
+        context = "\n🌐 **Live Search Results:**\n\n"
         for i, r in enumerate(results, 1):
-            context += f"📌 **উৎস {i}:** {r.get('title', 'শিরোনাম নেই')}\n"
-            context += f"📝 {r.get('body', 'বিবরণ নেই')}\n\n"
+            context += f"📌 **Source {i}:** {r.get('title', 'No title')}\n"
+            context += f"📝 {r.get('body', 'No description')}\n\n"
         return context
     except Exception as e:
         st.warning(f"Search error: {str(e)}")
@@ -206,7 +202,7 @@ def get_api_key():
     else:
         return None
 
-# ============ AI GENERATORS ============
+# ============ FIXED AI GENERATORS (ENGLISH + COMPLETE SOLUTION) ============
 
 def safe_text_stream(prompt, api_key):
     if not GROQ_SUPPORT or not api_key:
@@ -215,17 +211,25 @@ def safe_text_stream(prompt, api_key):
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",  # ✅ কম টোকেন খরচ
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": """You are Royal Bengal AI, created by Md Mohtasim Billah.
-                Always respond in Bengali script. Be friendly, helpful, and professional.
-                Provide step-by-step solutions with clear explanations.
-                Always output COMPLETE LaTeX code for all mathematical expressions using $$ ... $$ format.
-                After the solution, provide a separate section with the complete LaTeX code."""},
+
+CRITICAL RULES (MUST FOLLOW):
+1. RESPOND IN ENGLISH LANGUAGE ONLY - always use English
+2. Give COMPLETE, STEP-BY-STEP solutions - never skip steps
+3. Break down complex problems into simple, easy steps
+4. Use $$ LaTeX $$ for ALL mathematical expressions
+5. After solution, provide FULL LaTeX code that can be copied
+6. Be friendly, clear, and easy to understand
+7. NEVER mix Bengali with English
+8. Show ALL calculations and reasoning
+9. Make solutions educational and detailed
+10. If user asks in English, respond in English only"""},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7,
-            max_tokens=2048,
+            temperature=0.5,
+            max_tokens=4096,
             stream=True
         )
         for chunk in response:
@@ -243,16 +247,23 @@ def safe_math_stream(prompt, api_key):
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",  # ✅ কম টোকেন খরচ
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": """You are an expert Mathematics professor.
-                Respond in Bengali script. Provide detailed step-by-step solutions.
-                Use proper LaTeX formatting with $$ for equations.
-                Always output COMPLETE LaTeX code at the end."""},
+
+CRITICAL RULES:
+1. RESPOND IN ENGLISH ONLY
+2. Give COMPLETE step-by-step solutions
+3. Show ALL calculations and reasoning
+4. Use $$ LaTeX $$ for all equations
+5. Break down complex problems into simple steps
+6. Provide FULL LaTeX code at the end
+7. Never skip steps or give incomplete answers
+8. Be educational and easy to understand"""},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.5,
-            max_tokens=2048,
+            temperature=0.3,
+            max_tokens=4096,
             stream=True
         )
         for chunk in response:
@@ -270,16 +281,23 @@ def safe_econ_stream(prompt, api_key):
     try:
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",  # ✅ কম টোকেন খরচ
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": """You are an Economics professor.
-                Respond in Bengali script. Provide detailed economic analysis.
-                Use LaTeX for formulas.
-                Always output COMPLETE LaTeX code at the end."""},
+
+CRITICAL RULES:
+1. RESPOND IN ENGLISH ONLY
+2. Give COMPLETE economic analysis
+3. Show all formulas and calculations
+4. Use $$ LaTeX $$ for all equations
+5. Provide FULL LaTeX code at the end
+6. Explain concepts clearly and simply
+7. Never give incomplete answers
+8. Use real-world examples where helpful"""},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.5,
-            max_tokens=2048,
+            temperature=0.3,
+            max_tokens=4096,
             stream=True
         )
         for chunk in response:
@@ -434,7 +452,7 @@ def render_sidebar():
         
         st.markdown("---")
         st.markdown("### 📁 Chat History")
-        tabs = [("💬 AI Assistant", "tab1", "messages", "current_session_id_tab1"), ("📊 Math Wave", "tab2", "math_messages", "current_session_id_tab2"), ("📈 Economics", "tab3", "econ_messages", "current_session_id_tab3")]
+        tabs = [("💬 AI Assistant", "tab1", "messages", "current_session_id_tab1"), ("📊 Math Solver", "tab2", "math_messages", "current_session_id_tab2"), ("📈 Economics", "tab3", "econ_messages", "current_session_id_tab3")]
         for tab_name, tab_id, msg_key, session_key in tabs:
             with st.expander(f"📂 {tab_name}", expanded=False):
                 if st.button(f"➕ New Chat", key=f"new_{tab_id}", use_container_width=True):
@@ -507,13 +525,13 @@ def render_chat_interface():
     # Tab 1: AI Assistant
     with tab1:
         st.markdown("### 💬 AI Assistant with Document Support")
-        st.info("📄 PDF আপলোড করুন (MinerU Flash Mode - ফ্রি! ১০MB/২০ পৃষ্ঠা পর্যন্ত)")
+        st.info("📄 Upload PDF (MinerU Flash Mode - FREE! up to 10MB/20 pages)")
         
         uploaded_file = st.file_uploader(
             "📎 Upload PDF",
             type=["pdf"],
             key="tab1_uploader",
-            help="PDF আপলোড করুন (সর্বোচ্চ ১০MB, ২০ পৃষ্ঠা)"
+            help="Upload PDF (max 10MB, 20 pages)"
         )
         
         extracted_text = ""
@@ -521,22 +539,22 @@ def render_chat_interface():
         if uploaded_file:
             file_bytes = uploaded_file.getvalue()
             
-            with st.spinner("📖 MinerU দিয়ে PDF পড়া হচ্ছে (ফ্রি!)..."):
+            with st.spinner("📖 Reading PDF with MinerU (FREE!)..."):
                 extracted_text = extract_text_with_mineru(file_bytes)
                 
                 if extracted_text and "⚠️" not in extracted_text:
-                    st.success(f"✅ PDF প্রসেস সম্পন্ন! {len(extracted_text)} অক্ষর")
-                    with st.expander("📄 এক্সট্র্যাক্ট করা টেক্সট দেখুন"):
+                    st.success(f"✅ PDF processed! {len(extracted_text)} characters")
+                    with st.expander("📄 View extracted text"):
                         st.text(extracted_text[:2000] + "..." if len(extracted_text) > 2000 else extracted_text)
                 else:
                     st.error(extracted_text)
-                    st.info("💡 PDF টি স্ক্যান করা বা ইমেজ-ভিত্তিক হতে পারে। অথবা সাইজ/পৃষ্ঠা ১০MB/২০ এর বেশি।")
+                    st.info("💡 PDF may be scanned or image-based. Or size/page limit exceeded.")
         
         for msg in st.session_state.messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
         
-        if prompt := st.chat_input("আপনার প্রশ্ন লিখুন...", key="t1_chat"):
+        if prompt := st.chat_input("Ask your question...", key="t1_chat"):
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
@@ -556,7 +574,7 @@ def render_chat_interface():
                                 if search_result:
                                     context += search_result + "\n\n"
                             
-                            final_prompt = f"{context}User question: {prompt}\n\nPlease provide complete LaTeX code at the end."
+                            final_prompt = f"{context}User question: {prompt}\n\nPlease provide complete solution with LaTeX code at the end."
                             
                             stream = safe_text_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
@@ -565,7 +583,7 @@ def render_chat_interface():
                             
                             if "\\documentclass" in full_response:
                                 st.markdown("---")
-                                st.markdown("### 📝 LaTeX Code to Copy")
+                                st.markdown("### 📝 Complete LaTeX Code (Copy to create PDF)")
                                 st.code(full_response, language="latex")
                             
                             session_id = st.session_state.current_session_id_tab1 or str(uuid.uuid4())
@@ -578,13 +596,13 @@ def render_chat_interface():
     # Tab 2: Math Solver
     with tab2:
         st.markdown("### 📊 Advanced Math Solver")
-        st.info("📝 Math problems with step-by-step LaTeX solutions")
+        st.info("📝 Solve math problems with complete step-by-step LaTeX solutions")
         
         for msg in st.session_state.math_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
         
-        if prompt := st.chat_input("গাণিতিক সমস্যা লিখুন...", key="t2_chat"):
+        if prompt := st.chat_input("Enter math problem...", key="t2_chat"):
             st.session_state.math_messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
@@ -601,7 +619,7 @@ def render_chat_interface():
                                 if search_result:
                                     context += search_result + "\n\n"
                             
-                            final_prompt = f"{context}Math problem: {prompt}\n\nPlease provide complete LaTeX code at the end."
+                            final_prompt = f"{context}Math problem: {prompt}\n\nPlease provide complete step-by-step solution with LaTeX code at the end."
                             stream = safe_math_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
                             
@@ -609,7 +627,7 @@ def render_chat_interface():
                             
                             if "\\documentclass" in full_response:
                                 st.markdown("---")
-                                st.markdown("### 📝 LaTeX Code to Copy")
+                                st.markdown("### 📝 Complete LaTeX Code")
                                 st.code(full_response, language="latex")
                             
                             session_id = st.session_state.current_session_id_tab2 or str(uuid.uuid4())
@@ -622,13 +640,13 @@ def render_chat_interface():
     # Tab 3: Economics
     with tab3:
         st.markdown("### 📈 Economics Analysis")
-        st.info("📊 Economic analysis with LaTeX formulas and graphs")
+        st.info("📊 Economic analysis with complete formulas and LaTeX code")
         
         for msg in st.session_state.econ_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
         
-        if prompt := st.chat_input("অর্থনীতির প্রশ্ন লিখুন...", key="t3_chat"):
+        if prompt := st.chat_input("Enter economics question...", key="t3_chat"):
             st.session_state.econ_messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
@@ -645,7 +663,7 @@ def render_chat_interface():
                                 if search_result:
                                     context += search_result + "\n\n"
                             
-                            final_prompt = f"{context}Economics question: {prompt}\n\nPlease provide complete LaTeX code at the end."
+                            final_prompt = f"{context}Economics question: {prompt}\n\nPlease provide complete analysis with LaTeX code at the end."
                             stream = safe_econ_stream(final_prompt, groq_key)
                             full_response = st.write_stream(stream)
                             
@@ -653,7 +671,7 @@ def render_chat_interface():
                             
                             if "\\documentclass" in full_response:
                                 st.markdown("---")
-                                st.markdown("### 📝 LaTeX Code to Copy")
+                                st.markdown("### 📝 Complete LaTeX Code")
                                 st.code(full_response, language="latex")
                             
                             session_id = st.session_state.current_session_id_tab3 or str(uuid.uuid4())
@@ -671,7 +689,7 @@ def main():
     render_sidebar()
     render_chat_interface()
     st.markdown("---")
-    st.markdown("""<div style="text-align:center;color:#888;padding:1rem;"><p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p><p style="font-size:0.8rem;">Powered by Groq AI + MinerU (FREE) • PDF Support • LaTeX Export</p></div>""", unsafe_allow_html=True)
+    st.markdown("""<div style="text-align:center;color:#888;padding:1rem;"><p>Made with ❤️ by Md Mohtasim Billah | 🐅 Royal Bengal AI Machine</p><p style="font-size:0.8rem;">Powered by Groq AI + MinerU (FREE) • English Output • Complete Solutions • LaTeX Export</p></div>""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
